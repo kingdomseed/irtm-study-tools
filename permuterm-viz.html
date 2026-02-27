@@ -509,7 +509,13 @@ function renderStep(i) {
 
     // Description
     var descEl = document.getElementById('stepDesc');
-    descEl.textContent = s.type === 'transition' ? '' : s.desc;
+    if (s.type === 'transition') {
+        descEl.textContent = '';
+        descEl.style.display = 'none';
+    } else {
+        descEl.textContent = s.desc;
+        descEl.style.display = '';
+    }
 
     // Rule
     document.getElementById('ruleNote').textContent = s.rule || '';
