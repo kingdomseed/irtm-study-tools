@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRTM Exam Study Tools</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --border: #d1d5db;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg); color: var(--text);
+            line-height: 1.7; font-size: 18px;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .container { max-width: 640px; width: 100%; padding: 2rem; }
+
+        header { text-align: center; margin-bottom: 2.5rem; }
+        header h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+        header .subtitle {
+            color: #6b7280; font-size: 0.9rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        header .divider {
+            display: block; width: 50px; height: 2px;
+            background: var(--accent); margin: 1rem auto 0;
+            border-radius: 1px;
+        }
+
+        .tools { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        .tool-link {
+            display: flex; align-items: center; gap: 1.25rem;
+            padding: 1.25rem 1.5rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; text-decoration: none; color: var(--text);
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .tool-link:hover {
+            border-color: var(--accent);
+            box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+            transform: translateY(-1px);
+        }
+
+        .tool-icon {
+            width: 44px; height: 44px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; flex-shrink: 0;
+        }
+        .tool-icon.drill { background: #dbeafe; }
+        .tool-icon.perm  { background: #ede9fe; }
+        .tool-icon.edit  { background: #fef3c7; }
+
+        .tool-info h2 {
+            font-size: 1.05rem; margin-bottom: 0.15rem; line-height: 1.3;
+        }
+        .tool-info p {
+            font-size: 0.82rem; color: #6b7280; line-height: 1.4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .sister-link {
+            text-align: center; margin-top: 2rem;
+            font-size: 0.8rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .sister-link a { color: #6b7280; }
+        .sister-link a:hover { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>IRTM Study Tools</h1>
+            <p class="subtitle">Information Retrieval &amp; Text Mining &mdash; Exam March 2, 2026</p>
+            <span class="divider"></span>
+        </header>
+
+        <div class="tools">
+            <a href="study-guide.html" class="tool-link">
+                <div class="tool-icon drill">&#9997;</div>
+                <div class="tool-info">
+                    <h2>Exam Drill Cards</h2>
+                    <p>23 exam-style questions grouped by topic with worked solutions</p>
+                </div>
+            </a>
+            <a href="permuterm-viz.html" class="tool-link">
+                <div class="tool-icon perm">&#8635;</div>
+                <div class="tool-info">
+                    <h2>Permuterm Index Visualizer</h2>
+                    <p>Step-through animation of building and querying a permuterm index</p>
+                </div>
+            </a>
+            <a href="edit-distance-viz.html" class="tool-link">
+                <div class="tool-icon edit">&#9638;</div>
+                <div class="tool-info">
+                    <h2>Edit Distance Visualizer</h2>
+                    <p>Damerau-Levenshtein &amp; Levenshtein matrix built cell by cell</p>
+                </div>
+            </a>
+        </div>
+
+        <div class="sister-link">
+            Methods in CL flashcards &rarr; <a href="https://study.binaryloom.io">study.binaryloom.io</a>
+        </div>
+    </div>
+</body>
+</html>

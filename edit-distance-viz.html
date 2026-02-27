@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Distance — Step-Through Visualizer</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --accent-trans: #7c3aed;
+            --border: #d1d5db;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg); color: var(--text);
+            line-height: 1.7; font-size: 18px;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+        .back-link {
+            position: fixed; top: 0.75rem; left: 1rem; z-index: 100;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.8rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 6px; text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.8rem; color: var(--accent);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s;
+        }
+        .back-link:hover { background: #eff6ff; border-color: var(--accent); }
+
+        header { text-align: center; margin-bottom: 1.5rem; }
+        header h1 { font-size: 1.8rem; margin-bottom: 0.15rem; }
+        header .subtitle { color: #6b7280; font-size: 0.95rem; }
+
+        /* Presets */
+        .presets {
+            display: flex; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.45rem 1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.85rem; transition: all 0.2s;
+        }
+        .preset-btn:hover { border-color: var(--accent); }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Mode toggle */
+        .mode-toggle {
+            display: flex; justify-content: center; gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .mode-btn {
+            padding: 0.35rem 0.9rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.78rem; transition: all 0.2s;
+        }
+        .mode-btn:hover { border-color: var(--accent-trans); }
+        .mode-btn.active { background: var(--accent-trans); color: white; border-color: var(--accent-trans); }
+
+        /* Main area */
+        .main-area {
+            display: grid; grid-template-columns: 1fr 260px;
+            gap: 1.25rem; margin-bottom: 1.25rem;
+        }
+
+        .grid-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.5rem;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* Matrix */
+        .matrix { border-collapse: collapse; margin: 1rem 0; }
+        .matrix td, .matrix th {
+            width: 48px; height: 48px; text-align: center; vertical-align: middle;
+            font-family: 'SF Mono', 'Fira Code', monospace; font-size: 1rem;
+            border: 1px solid #e5e7eb; position: relative;
+        }
+        .matrix th {
+            background: #f8f9fa; font-weight: 600; color: #374151;
+            font-size: 1.1rem;
+        }
+        .matrix th.corner { background: transparent; border: none; }
+        .matrix th.source-char { color: var(--accent); }
+        .matrix th.target-char { color: #dc2626; }
+        .matrix td.empty { background: #f3f4f6; color: #9ca3af; }
+        .matrix td.filled { background: white; }
+        .matrix td.current {
+            background: #dbeafe; border: 2px solid var(--accent);
+            font-weight: 700;
+        }
+        .matrix td.computed { background: white; }
+        .matrix td.path { background: #dcfce7; font-weight: 600; }
+        .matrix td.transposition {
+            background: #ede9fe; border: 2px solid var(--accent-trans);
+            font-weight: 700;
+        }
+        .matrix td .arrow {
+            position: absolute; font-size: 0.65rem; font-weight: 700;
+            line-height: 1; pointer-events: none;
+        }
+        .matrix td .arrow.from-diag { bottom: 2px; right: 3px; }
+        .matrix td .arrow.from-left { top: 50%; right: 1px; transform: translateY(-50%); }
+        .matrix td .arrow.from-top { bottom: 1px; left: 50%; transform: translateX(-50%); }
+        .matrix td .arrow.from-trans { bottom: 2px; right: 3px; }
+        .matrix td.src-cell { outline-offset: -2px; z-index: 1; position: relative; }
+        .matrix td .cost-badge {
+            position: absolute; top: 1px; left: 2px;
+            font-size: 0.5rem; font-weight: 700; line-height: 1;
+            font-family: -apple-system, sans-serif;
+            pointer-events: none;
+        }
+
+        /* Explanation panel */
+        .explain-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.25rem;
+            font-size: 0.9rem;
+        }
+        .explain-panel h3 {
+            font-size: 0.95rem; margin-bottom: 0.75rem;
+            padding-bottom: 0.4rem; border-bottom: 2px solid var(--bg);
+        }
+        .op-label {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.05em; margin-bottom: 0.3rem; display: block;
+        }
+        .op-label.match { color: #22c55e; }
+        .op-label.sub { color: #ea580c; }
+        .op-label.ins { color: #2563eb; }
+        .op-label.del { color: #dc2626; }
+        .op-label.trans { color: var(--accent-trans); }
+
+        .candidates { margin: 0.75rem 0; padding: 0; list-style: none; }
+        .candidates li {
+            padding: 0.35rem 0.6rem; margin-bottom: 3px;
+            border-radius: 4px; font-size: 0.85rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            display: flex; justify-content: space-between;
+        }
+        .candidates li.winner { background: #dcfce7; font-weight: 600; }
+        .candidates li.trans-winner { background: #ede9fe; font-weight: 600; }
+        .cand-name { font-family: -apple-system, sans-serif; font-size: 0.78rem; color: #6b7280; }
+
+        .step-desc {
+            font-size: 0.95rem; text-align: center;
+            padding: 0.8rem 1rem; background: #f8f9fa;
+            border-radius: 6px; margin-top: auto;
+        }
+        .rule-note {
+            font-size: 0.78rem; color: #6b7280; text-align: center;
+            margin-top: 0.5rem; font-style: italic;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .result-box {
+            text-align: center; padding: 1rem;
+            background: #dcfce7; border: 2px solid #22c55e;
+            border-radius: 8px; font-size: 1.1rem;
+            font-weight: 600; margin-top: 0.75rem;
+        }
+
+        /* Ops legend */
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 0.6rem;
+            margin-bottom: 0.75rem; justify-content: center;
+        }
+        .legend-item {
+            font-family: -apple-system, sans-serif;
+            font-size: 0.7rem; display: flex; align-items: center; gap: 0.25rem;
+        }
+        .legend-dot {
+            width: 10px; height: 10px; border-radius: 2px;
+        }
+        .legend-dot.lg-match { background: #dcfce7; border: 1px solid #22c55e; }
+        .legend-dot.lg-current { background: #dbeafe; border: 1px solid var(--accent); }
+        .legend-dot.lg-trans { background: #ede9fe; border: 1px solid var(--accent-trans); }
+        .legend-dot.lg-path { background: #fef9c3; border: 1px solid #eab308; }
+
+        /* Controls */
+        .controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 1.25rem; padding: 0.8rem 1rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 0.6rem;
+        }
+        .controls button {
+            padding: 0.55rem 1.1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: inherit; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .controls button:hover:not(:disabled) {
+            background: var(--accent); color: white; border-color: var(--accent);
+        }
+        .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .step-counter {
+            font-size: 0.85rem; color: #6b7280; min-width: 120px; text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.75rem; font-size: 0.8rem; color: #6b7280;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row label { cursor: pointer; }
+        .autoplay-row input[type="range"] { width: 90px; }
+        .kbd-hint {
+            text-align: center; margin-top: 1rem;
+            font-size: 0.75rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .kbd-hint kbd {
+            background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 3px; padding: 0.1rem 0.35rem; font-size: 0.72rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-area { grid-template-columns: 1fr; }
+            .matrix td, .matrix th { width: 40px; height: 40px; font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+    <a href="study-guide.html" class="back-link">&larr; Study Guide</a>
+    <div class="container">
+        <header>
+            <h1>Edit Distance</h1>
+            <p class="subtitle">Step-through visualizer — Damerau-Levenshtein &amp; Levenshtein</p>
+        </header>
+
+        <div class="presets">
+            <button class="preset-btn active" data-preset="bca_cba">WS24/25: bca &rarr; cba</button>
+            <button class="preset-btn" data-preset="abc_acb">WS19/20: abc &rarr; acb</button>
+            <button class="preset-btn" data-preset="mouse_muose">Teaching: Mouse &rarr; Muose</button>
+            <button class="preset-btn" data-preset="abcx_cxa">Levenshtein: abcx &rarr; cxa</button>
+        </div>
+
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="dl">Damerau-Levenshtein</button>
+            <button class="mode-btn" data-mode="lev">Standard Levenshtein</button>
+        </div>
+
+        <div class="legend">
+            <span class="legend-item"><span class="legend-dot lg-current"></span> Current cell</span>
+            <span class="legend-item"><span class="legend-dot lg-match"></span> Match (free)</span>
+            <span class="legend-item"><span class="legend-dot lg-trans"></span> Transposition</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#fff7ed;border:1.5px solid #ea580c;"></span> Source cells</span>
+        </div>
+
+        <div class="main-area">
+            <div class="grid-panel">
+                <table class="matrix" id="matrix"></table>
+                <div class="step-desc" id="stepDesc">Click "Next Step" to begin</div>
+                <div class="rule-note" id="ruleNote"></div>
+                <div id="resultBox"></div>
+            </div>
+            <div class="explain-panel">
+                <h3>Cell Computation</h3>
+                <div id="explainContent">
+                    <p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0;font-size:0.85rem;">
+                        Step through to see how each cell is computed
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>&larr; Back</button>
+            <span class="step-counter" id="stepCounter">Ready</span>
+            <button id="nextBtn">Next Step &rarr;</button>
+        </div>
+        <div class="autoplay-row">
+            <label><input type="checkbox" id="autoplayCheck"> Auto-play</label>
+            <input type="range" id="speedRange" min="400" max="3000" value="1000" step="100">
+            <span id="speedLabel">1.0s</span>
+        </div>
+        <div class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>Space</kbd> to navigate</div>
+    </div>
+
+<script>
+var PRESETS = {
+    bca_cba:     { source: 'bca',   target: 'cba',   mode: 'dl'  },
+    abc_acb:     { source: 'abc',   target: 'acb',   mode: 'dl'  },
+    mouse_muose: { source: 'Mouse', target: 'Muose', mode: 'dl'  },
+    abcx_cxa:    { source: 'abcx',  target: 'cxa',   mode: 'lev' }
+};
+
+var steps = [];
+var currentStep = -1;
+var currentMode = 'dl';
+var autoplayTimer = null;
+
+// ============================================================
+//  COMPUTE EDIT DISTANCE + GENERATE STEPS
+// ============================================================
+function computeSteps(source, target, mode) {
+    var s = source.toLowerCase();
+    var t = target.toLowerCase();
+    var m = s.length;
+    var n = t.length;
+    var S = [];
+
+    // Init matrix
+    var d = [];
+    for (var i = 0; i <= m; i++) {
+        d[i] = [];
+        for (var j = 0; j <= n; j++) {
+            d[i][j] = null;
+        }
+    }
+
+    // Step: fill d[0][0]
+    d[0][0] = 0;
+    S.push({
+        r: 0, c: 0, val: 0,
+        matrix: copyMatrix(d, m, n),
+        desc: 'Base case: empty string to empty string = 0',
+        rule: 'Top-left corner is always 0',
+        explain: null, type: 'base'
+    });
+
+    // Fill first row
+    for (var j2 = 1; j2 <= n; j2++) {
+        d[0][j2] = j2;
+        S.push({
+            r: 0, c: j2, val: j2,
+            matrix: copyMatrix(d, m, n),
+            desc: 'Insert ' + j2 + ' character' + (j2 > 1 ? 's' : '') + ' to reach "' + t.slice(0, j2) + '"',
+            rule: 'First row = cost of inserting each target character',
+            explain: null, type: 'base'
+        });
+    }
+
+    // Fill first column
+    for (var i2 = 1; i2 <= m; i2++) {
+        d[i2][0] = i2;
+        S.push({
+            r: i2, c: 0, val: i2,
+            matrix: copyMatrix(d, m, n),
+            desc: 'Delete ' + i2 + ' character' + (i2 > 1 ? 's' : '') + ' from "' + s.slice(0, i2) + '"',
+            rule: 'First column = cost of deleting each source character',
+            explain: null, type: 'base'
+        });
+    }
+
+    // Fill rest
+    for (var i3 = 1; i3 <= m; i3++) {
+        for (var j3 = 1; j3 <= n; j3++) {
+            var sChar = s[i3 - 1];
+            var tChar = t[j3 - 1];
+            var isMatch = sChar === tChar;
+            var subCost = isMatch ? 0 : 1;
+
+            var candidates = [];
+            var diagVal = d[i3 - 1][j3 - 1] + subCost;
+            var leftVal = d[i3][j3 - 1] + 1;
+            var topVal = d[i3 - 1][j3] + 1;
+
+            candidates.push({
+                name: isMatch ? 'match' : 'substitute',
+                val: diagVal, srcR: i3 - 1, srcC: j3 - 1,
+                from: '(' + (i3-1) + ',' + (j3-1) + ') + ' + subCost,
+                label: isMatch
+                    ? 'Diagonal: "' + sChar + '" = "' + tChar + '" (match, +0)'
+                    : 'Diagonal: "' + sChar + '" \u2260 "' + tChar + '" (substitute, +1)'
+            });
+            candidates.push({
+                name: 'insert',
+                val: leftVal, srcR: i3, srcC: j3 - 1,
+                from: '(' + i3 + ',' + (j3-1) + ') + 1',
+                label: 'Left: insert "' + tChar + '" (+1)'
+            });
+            candidates.push({
+                name: 'delete',
+                val: topVal, srcR: i3 - 1, srcC: j3,
+                from: '(' + (i3-1) + ',' + j3 + ') + 1',
+                label: 'Above: delete "' + sChar + '" (+1)'
+            });
+
+            var best = Math.min(diagVal, leftVal, topVal);
+            var bestOp = candidates[0].name;
+            if (leftVal < best || (leftVal === best && best === leftVal)) { /* already min */ }
+
+            // Transposition check (DL only)
+            var transVal = Infinity;
+            var transCandidate = null;
+            if (mode === 'dl' && i3 >= 2 && j3 >= 2 &&
+                s[i3 - 1] === t[j3 - 2] && s[i3 - 2] === t[j3 - 1]) {
+                transVal = d[i3 - 2][j3 - 2] + 1;
+                transCandidate = {
+                    name: 'transpose',
+                    val: transVal, srcR: i3 - 2, srcC: j3 - 2,
+                    from: '(' + (i3-2) + ',' + (j3-2) + ') + 1',
+                    label: 'Transpose: swap "' + s[i3-2] + s[i3-1] + '" \u2194 "' + t[j3-2] + t[j3-1] + '" (+1)'
+                };
+                candidates.push(transCandidate);
+                best = Math.min(best, transVal);
+            }
+
+            d[i3][j3] = best;
+
+            // Mark winner
+            candidates.forEach(function(c) { c.winner = c.val === best; });
+            var winnerOp = 'sub';
+            for (var ci = 0; ci < candidates.length; ci++) {
+                if (candidates[ci].winner && candidates[ci].val === best) {
+                    winnerOp = candidates[ci].name;
+                    break;
+                }
+            }
+
+            var descText = 'd[' + i3 + '][' + j3 + '] = ' + best;
+            if (winnerOp === 'match') descText += ' (match: "' + sChar + '" = "' + tChar + '")';
+            else if (winnerOp === 'transpose') descText += ' (transposition!)';
+            else if (winnerOp === 'substitute') descText += ' (substitute "' + sChar + '" \u2192 "' + tChar + '")';
+            else if (winnerOp === 'insert') descText += ' (insert "' + tChar + '")';
+            else if (winnerOp === 'delete') descText += ' (delete "' + sChar + '")';
+
+            S.push({
+                r: i3, c: j3, val: best,
+                matrix: copyMatrix(d, m, n),
+                desc: descText,
+                rule: winnerOp === 'transpose'
+                    ? 'Transposition: adjacent characters are swapped between source and target'
+                    : winnerOp === 'match'
+                    ? 'Characters match \u2014 no cost added'
+                    : 'Take the minimum of all candidate operations',
+                explain: { sChar: sChar, tChar: tChar, candidates: candidates, winner: winnerOp },
+                type: winnerOp === 'transpose' ? 'transposition' : (winnerOp === 'match' ? 'match' : 'normal')
+            });
+        }
+    }
+
+    // Final result
+    S.push({
+        r: m, c: n, val: d[m][n], final: true,
+        matrix: copyMatrix(d, m, n),
+        desc: (mode === 'dl' ? 'Damerau-Levenshtein' : 'Levenshtein') + ' distance: ' + d[m][n],
+        rule: 'The bottom-right cell contains the final edit distance',
+        explain: null, type: 'result'
+    });
+
+    return S;
+}
+
+function copyMatrix(d, m, n) {
+    var copy = [];
+    for (var i = 0; i <= m; i++) {
+        copy[i] = [];
+        for (var j = 0; j <= n; j++) {
+            copy[i][j] = d[i][j];
+        }
+    }
+    return copy;
+}
+
+// ============================================================
+//  RENDERING
+// ============================================================
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function renderMatrix(step, source, target) {
+    var table = document.getElementById('matrix');
+    clearChildren(table);
+
+    var s = source.toLowerCase();
+    var t = target.toLowerCase();
+    var m = s.length;
+    var n = t.length;
+    var mat = step.matrix;
+    var cells = [];
+
+    // Header row
+    var headerRow = document.createElement('tr');
+    var corner1 = document.createElement('th');
+    corner1.className = 'corner';
+    headerRow.appendChild(corner1);
+    var corner2 = document.createElement('th');
+    corner2.className = 'corner';
+    headerRow.appendChild(corner2);
+    for (var j = 0; j < n; j++) {
+        var th = document.createElement('th');
+        th.className = 'target-char';
+        th.textContent = target[j];
+        headerRow.appendChild(th);
+    }
+    table.appendChild(headerRow);
+
+    // Rows
+    for (var i = 0; i <= m; i++) {
+        cells[i] = [];
+        var row = document.createElement('tr');
+
+        // Row header
+        var rh = document.createElement('th');
+        if (i === 0) {
+            rh.className = 'corner';
+        } else {
+            rh.className = 'source-char';
+            rh.textContent = source[i - 1];
+        }
+        row.appendChild(rh);
+
+        // Cells
+        for (var j2 = 0; j2 <= n; j2++) {
+            var td = document.createElement('td');
+            if (mat[i][j2] !== null) {
+                td.textContent = mat[i][j2];
+                td.className = 'filled';
+                if (i === step.r && j2 === step.c) {
+                    if (step.type === 'transposition') {
+                        td.className = 'transposition';
+                    } else if (step.type === 'match') {
+                        td.className = 'current';
+                        td.style.background = '#dcfce7';
+                        td.style.borderColor = '#22c55e';
+                    } else {
+                        td.className = 'current';
+                    }
+                }
+                if (step.final && i === m && j2 === n) {
+                    td.className = 'transposition';
+                    td.style.background = '#dcfce7';
+                    td.style.borderColor = '#22c55e';
+                    td.style.fontSize = '1.2rem';
+                }
+            } else {
+                td.className = 'empty';
+            }
+            cells[i][j2] = td;
+            row.appendChild(td);
+        }
+        table.appendChild(row);
+    }
+
+    // Back-calculation highlighting: show which cells fed into the current cell
+    if (step.explain && step.explain.candidates) {
+        var OP_COLORS = {
+            match:      { bg: '#dcfce7', bgLight: '#f0fdf4', border: '#22c55e', arrow: '\u2198' },
+            substitute: { bg: '#fff7ed', bgLight: '#fffbeb', border: '#ea580c', arrow: '\u2198' },
+            insert:     { bg: '#dbeafe', bgLight: '#eff6ff', border: '#2563eb', arrow: '\u2192' },
+            delete:     { bg: '#fee2e2', bgLight: '#fef2f2', border: '#dc2626', arrow: '\u2193' },
+            transpose:  { bg: '#ede9fe', bgLight: '#faf5ff', border: '#7c3aed', arrow: '\u2198' }
+        };
+        var ARROW_CLASS = {
+            match: 'from-diag', substitute: 'from-diag',
+            insert: 'from-left', delete: 'from-top', transpose: 'from-trans'
+        };
+
+        step.explain.candidates.forEach(function(c) {
+            if (c.srcR == null || c.srcC == null) return;
+            if (!cells[c.srcR] || !cells[c.srcR][c.srcC]) return;
+
+            var cell = cells[c.srcR][c.srcC];
+            var col = OP_COLORS[c.name];
+            if (!col) return;
+
+            cell.classList.add('src-cell');
+
+            if (c.winner) {
+                cell.style.outline = '2.5px solid ' + col.border;
+                cell.style.background = col.bg;
+            } else {
+                cell.style.outline = '1.5px dashed ' + col.border;
+                cell.style.background = col.bgLight;
+            }
+
+            // Arrow pointing toward current cell
+            var arrowEl = document.createElement('span');
+            arrowEl.className = 'arrow ' + ARROW_CLASS[c.name];
+            arrowEl.textContent = col.arrow;
+            arrowEl.style.color = col.border;
+            cell.appendChild(arrowEl);
+
+            // Cost badge showing +0 or +1
+            var cost = c.val - mat[c.srcR][c.srcC];
+            var costEl = document.createElement('span');
+            costEl.className = 'cost-badge';
+            costEl.textContent = '+' + cost;
+            costEl.style.color = col.border;
+            cell.appendChild(costEl);
+        });
+    }
+}
+
+function renderExplain(step) {
+    var el = document.getElementById('explainContent');
+    clearChildren(el);
+
+    if (!step.explain) {
+        var p = document.createElement('p');
+        p.style.cssText = 'color:#9ca3af;font-style:italic;text-align:center;padding:1rem 0;font-size:0.85rem;';
+        if (step.type === 'base') {
+            p.textContent = 'Base case \u2014 initializing edges of the matrix';
+        } else if (step.type === 'result') {
+            p.textContent = 'Done! The final distance is in the bottom-right cell.';
+        } else {
+            p.textContent = 'Step through to see cell computations';
+        }
+        el.appendChild(p);
+        return;
+    }
+
+    var ex = step.explain;
+
+    // Comparison header
+    var comp = document.createElement('div');
+    comp.style.cssText = 'text-align:center;margin-bottom:0.75rem;font-size:0.95rem;';
+    var sSpan = document.createElement('span');
+    sSpan.style.cssText = 'color:#2563eb;font-weight:600;font-size:1.1rem;';
+    sSpan.textContent = '"' + ex.sChar + '"';
+    var vs = document.createTextNode(' vs ');
+    var tSpan = document.createElement('span');
+    tSpan.style.cssText = 'color:#dc2626;font-weight:600;font-size:1.1rem;';
+    tSpan.textContent = '"' + ex.tChar + '"';
+    comp.appendChild(sSpan);
+    comp.appendChild(vs);
+    comp.appendChild(tSpan);
+
+    if (ex.sChar === ex.tChar) {
+        var matchTag = document.createElement('span');
+        matchTag.style.cssText = 'display:block;color:#22c55e;font-size:0.75rem;font-family:-apple-system,sans-serif;font-weight:600;margin-top:0.2rem;';
+        matchTag.textContent = 'MATCH';
+        comp.appendChild(matchTag);
+    }
+    el.appendChild(comp);
+
+    // Candidates list
+    var ul = document.createElement('ul');
+    ul.className = 'candidates';
+    ex.candidates.forEach(function(c) {
+        var li = document.createElement('li');
+        if (c.winner && c.name === 'transpose') li.className = 'trans-winner';
+        else if (c.winner) li.className = 'winner';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'cand-name';
+        nameSpan.textContent = c.label;
+
+        var valSpan = document.createElement('span');
+        valSpan.style.fontWeight = '600';
+        valSpan.textContent = c.val;
+        if (c.winner) {
+            valSpan.textContent = c.val + ' \u2713';
+        }
+
+        li.appendChild(nameSpan);
+        li.appendChild(valSpan);
+        ul.appendChild(li);
+    });
+    el.appendChild(ul);
+
+    // Winner summary
+    var summary = document.createElement('div');
+    summary.style.cssText = 'text-align:center;margin-top:0.5rem;font-weight:600;font-size:0.9rem;';
+    summary.textContent = 'min = ' + step.val;
+    el.appendChild(summary);
+}
+
+function renderStep(idx) {
+    if (idx < 0 || idx >= steps.length) return;
+    var step = steps[idx];
+    var preset = getCurrentPreset();
+
+    renderMatrix(step, preset.source, preset.target);
+    document.getElementById('stepDesc').textContent = step.desc;
+    document.getElementById('ruleNote').textContent = step.rule || '';
+    renderExplain(step);
+
+    var resultBox = document.getElementById('resultBox');
+    clearChildren(resultBox);
+    if (step.final) {
+        var rb = document.createElement('div');
+        rb.className = 'result-box';
+        rb.textContent = '\u2713 Distance: ' + step.val;
+        resultBox.appendChild(rb);
+    }
+
+    document.getElementById('prevBtn').disabled = idx <= 0;
+    document.getElementById('nextBtn').disabled = idx >= steps.length - 1;
+    document.getElementById('stepCounter').textContent = 'Step ' + (idx + 1) + ' / ' + steps.length;
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function goToStep(i) {
+    if (i < 0 || i >= steps.length) return;
+    currentStep = i;
+    renderStep(i);
+}
+
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1); }
+
+// ============================================================
+//  PRESETS & MODE
+// ============================================================
+var currentPresetName = 'bca_cba';
+
+function getCurrentPreset() {
+    return PRESETS[currentPresetName];
+}
+
+function loadPreset(name) {
+    currentPresetName = name;
+    var p = PRESETS[name];
+    currentMode = p.mode;
+
+    // Update mode buttons
+    document.querySelectorAll('.mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === currentMode);
+    });
+
+    // Update preset buttons
+    document.querySelectorAll('.preset-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.preset === name);
+    });
+
+    steps = computeSteps(p.source, p.target, currentMode);
+    currentStep = 0;
+    stopAutoplay();
+    document.getElementById('autoplayCheck').checked = false;
+    renderStep(0);
+}
+
+function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === mode);
+    });
+
+    var p = getCurrentPreset();
+    steps = computeSteps(p.source, p.target, mode);
+    currentStep = 0;
+    stopAutoplay();
+    document.getElementById('autoplayCheck').checked = false;
+    renderStep(0);
+}
+
+// ============================================================
+//  AUTOPLAY
+// ============================================================
+function startAutoplay() {
+    var ms = parseInt(document.getElementById('speedRange').value);
+    autoplayTimer = setInterval(function() {
+        if (currentStep >= steps.length - 1) {
+            stopAutoplay();
+            document.getElementById('autoplayCheck').checked = false;
+            return;
+        }
+        nextStep();
+    }, ms);
+}
+
+function stopAutoplay() {
+    if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+}
+
+// ============================================================
+//  EVENTS
+// ============================================================
+document.getElementById('nextBtn').addEventListener('click', nextStep);
+document.getElementById('prevBtn').addEventListener('click', prevStep);
+
+document.querySelectorAll('.preset-btn').forEach(function(b) {
+    b.addEventListener('click', function() { loadPreset(b.dataset.preset); });
+});
+
+document.querySelectorAll('.mode-btn').forEach(function(b) {
+    b.addEventListener('click', function() { setMode(b.dataset.mode); });
+});
+
+document.getElementById('autoplayCheck').addEventListener('change', function(e) {
+    if (e.target.checked) startAutoplay(); else stopAutoplay();
+});
+
+document.getElementById('speedRange').addEventListener('input', function(e) {
+    document.getElementById('speedLabel').textContent = (e.target.value / 1000).toFixed(1) + 's';
+    if (autoplayTimer) { stopAutoplay(); startAutoplay(); }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+loadPreset('bca_cba');
+</script>
+</body>
+</html>

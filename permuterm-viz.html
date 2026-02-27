@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permuterm Index — Step-Through Visualizer</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --accent-query: #7c3aed;
+            --border: #d1d5db;
+            --card-bg: #ffffff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 18px;
+        }
+
+        .container {
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 3rem;
+        }
+
+        /* --- Header --- */
+        header { text-align: center; margin-bottom: 1.5rem; }
+        header h1 { font-size: 1.8rem; margin-bottom: 0.15rem; }
+        header .subtitle { color: #6b7280; font-size: 0.95rem; }
+
+        .back-link {
+            position: fixed; top: 0.75rem; left: 1rem; z-index: 100;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.8rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 6px; text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.8rem; color: var(--accent);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: all 0.2s;
+        }
+        .back-link:hover { background: #eff6ff; border-color: var(--accent); }
+
+        /* --- Presets --- */
+        .presets {
+            display: flex; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.45rem 1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.85rem; transition: all 0.2s;
+        }
+        .preset-btn:hover { border-color: var(--accent); }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* --- Main grid --- */
+        .main-area {
+            display: grid;
+            grid-template-columns: 1fr 270px;
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        /* --- Animation panel --- */
+        .animation-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.75rem 2rem;
+            min-height: 340px; display: flex; flex-direction: column;
+        }
+
+        .phase-label {
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+            font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin-bottom: 0.5rem; transition: color 0.3s;
+        }
+        .phase-label.build { color: var(--accent); }
+        .phase-label.query { color: var(--accent-query); }
+
+        .term-label {
+            font-size: 0.95rem; color: #6b7280; margin-bottom: 1.25rem;
+            min-height: 1.5em;
+        }
+        .term-label strong { font-weight: 700; }
+
+        /* --- Tiles --- */
+        .tile-container {
+            display: flex; justify-content: center; align-items: center;
+            min-height: 90px; margin-bottom: 1.25rem; position: relative;
+        }
+        .tile-row { display: flex; gap: 5px; position: relative; }
+
+        .tile {
+            width: 50px; height: 58px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 1.35rem; font-weight: 600;
+            border: 2px solid var(--border); border-radius: 6px;
+            background: white;
+            transition: background 0.35s, border-color 0.35s;
+            position: relative;
+        }
+        .tile.dollar  { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+        .tile.star    { background: #ede9fe; border-color: #8b5cf6; color: #5b21b6; }
+        .tile.moved   { background: #dcfce7; border-color: #22c55e; }
+        .tile.highlight { background: #dbeafe; border-color: var(--accent); }
+        .tile.prefix-hi { background: #fce7f3; border-color: #ec4899; }
+        .tile.star-done { background: #d1fae5; border-color: #10b981; }
+
+        /* --- Descriptions --- */
+        .step-desc {
+            font-size: 1.05rem; text-align: center;
+            padding: 0.9rem 1rem; background: #f8f9fa;
+            border-radius: 6px; min-height: 3.2rem;
+            display: flex; align-items: center; justify-content: center;
+            line-height: 1.5;
+        }
+        .rule-note {
+            font-size: 0.82rem; color: #6b7280; text-align: center;
+            margin-top: 0.6rem; font-style: italic; min-height: 1.4em;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .result-box {
+            text-align: center; padding: 1.25rem;
+            background: #dcfce7; border: 2px solid #22c55e;
+            border-radius: 8px; font-size: 1.15rem;
+            font-weight: 600; margin-top: 1rem;
+        }
+        .phase-divider {
+            text-align: center; padding: 2rem 1rem;
+            font-size: 1rem; color: #6b7280;
+        }
+        .phase-divider .check { color: #22c55e; font-size: 1.3rem; }
+
+        /* --- Index panel --- */
+        .index-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1rem 1.1rem;
+            max-height: 520px; overflow-y: auto;
+        }
+        .index-panel h3 {
+            font-size: 0.95rem; margin-bottom: 0.6rem;
+            padding-bottom: 0.4rem; border-bottom: 2px solid var(--bg);
+        }
+        .index-entry {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.78rem; padding: 0.25rem 0.45rem;
+            border-radius: 4px; margin-bottom: 2px;
+            display: flex; align-items: baseline;
+            transition: background 0.3s;
+        }
+        .index-entry .rotation { white-space: pre; }
+        .index-entry .arrow { color: #9ca3af; margin: 0 0.35rem; flex-shrink: 0; }
+        .index-entry .original { color: #6b7280; }
+        .index-entry.new-entry { background: #dbeafe; animation: entryFlash 0.6s ease; }
+        .index-entry.match { background: #dcfce7; font-weight: 600; }
+        .index-entry .prefix-hl { background: #bbf7d0; padding: 0 2px; border-radius: 2px; }
+        @keyframes entryFlash { 0% { background: #93c5fd; } 100% { background: #dbeafe; } }
+        .index-empty {
+            color: #9ca3af; font-style: italic;
+            text-align: center; padding: 2rem 0; font-size: 0.9rem;
+        }
+        .index-count {
+            font-size: 0.72rem; color: #9ca3af;
+            text-align: right; margin-top: 0.4rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        /* --- Controls --- */
+        .controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 1.25rem; padding: 0.8rem 1rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 0.6rem;
+        }
+        .controls button {
+            padding: 0.55rem 1.1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: inherit; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .controls button:hover:not(:disabled) {
+            background: var(--accent); color: white; border-color: var(--accent);
+        }
+        .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .step-counter {
+            font-size: 0.85rem; color: #6b7280;
+            min-width: 120px; text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.75rem; font-size: 0.8rem; color: #6b7280;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row label { cursor: pointer; }
+        .autoplay-row input[type="range"] { width: 90px; }
+        .kbd-hint {
+            text-align: center; margin-top: 1rem;
+            font-size: 0.75rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .kbd-hint kbd {
+            background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 3px; padding: 0.1rem 0.35rem;
+            font-size: 0.72rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-area { grid-template-columns: 1fr; }
+            .tile { width: 42px; height: 50px; font-size: 1.15rem; }
+        }
+    </style>
+</head>
+<body>
+    <a href="study-guide.html" class="back-link">&larr; Study Guide</a>
+    <div class="container">
+        <header>
+            <h1>Permuterm Index</h1>
+            <p class="subtitle">Step-through visualizer — building &amp; querying</p>
+        </header>
+
+        <div class="presets">
+            <button class="preset-btn active" data-preset="teaching">Teaching: "hello" → he*o</button>
+            <button class="preset-btn" data-preset="ws2425">WS24/25: to, two, too, is → t*o</button>
+            <button class="preset-btn" data-preset="ws2122">WS21/22: he, is, she → *he</button>
+        </div>
+
+        <div class="main-area">
+            <div class="animation-panel">
+                <div class="phase-label build" id="phaseLabel">Phase 1 — Building the Index</div>
+                <div class="term-label" id="termLabel"></div>
+                <div class="tile-container">
+                    <div class="tile-row" id="tileRow"></div>
+                </div>
+                <div class="step-desc" id="stepDesc">Click "Next Step" to begin</div>
+                <div class="rule-note" id="ruleNote"></div>
+                <div id="extraBox"></div>
+            </div>
+            <div class="index-panel">
+                <h3>Permuterm Index</h3>
+                <div class="index-entries" id="indexEntries">
+                    <div class="index-empty">Empty — step through to build it</div>
+                </div>
+                <div class="index-count" id="indexCount"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>← Back</button>
+            <span class="step-counter" id="stepCounter">Ready</span>
+            <button id="nextBtn">Next Step →</button>
+        </div>
+        <div class="autoplay-row">
+            <label><input type="checkbox" id="autoplayCheck"> Auto-play</label>
+            <input type="range" id="speedRange" min="400" max="3000" value="1200" step="100">
+            <span id="speedLabel">1.2s</span>
+        </div>
+        <div class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to navigate</div>
+    </div>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+const PRESETS = {
+    teaching: { terms: ['hello'],                query: 'he*o' },
+    ws2425:   { terms: ['to','two','too','is'],  query: 't*o'  },
+    ws2122:   { terms: ['he','is','she'],        query: '*he'  },
+};
+
+const TERM_COLORS = ['#2563eb','#dc2626','#059669','#7c3aed','#ea580c'];
+
+let steps = [];
+let currentStep = 0;
+let animating = false;
+let autoplayTimer = null;
+
+// ============================================================
+//  STEP GENERATION
+// ============================================================
+function generateSteps(terms, query) {
+    const S = [];
+    const idx = [];
+
+    // Phase 1: Build
+    terms.forEach(function(term, ti) {
+        const wd = term + '$';
+        S.push({ phase:'build', type:'show-term', tiles:term.split(''),
+            termIdx:ti, term:term, desc:'Term: "' + term + '"',
+            rule:'Each term in the vocabulary gets processed into rotations',
+            index:idx.slice(), newEntry:-1 });
+
+        S.push({ phase:'build', type:'append', tiles:wd.split(''),
+            termIdx:ti, term:term, desc:'Append $ end marker \u2192 "' + wd + '"',
+            rule:'$ marks where the word boundary is \u2014 it encodes position',
+            index:idx.slice(), newEntry:-1, hlLast:true });
+
+        var cur = wd;
+        for (var r = 0; r < wd.length; r++) {
+            idx.push({ rot:cur, orig:term, ti:ti });
+            S.push({ phase:'build', type:'rotation', tiles:cur.split(''),
+                termIdx:ti, term:term,
+                desc: r === 0
+                    ? 'Rotation 1/' + wd.length + ': "' + cur + '" \u2192 index'
+                    : 'Rotation ' + (r+1) + '/' + wd.length + ': "' + cur + '" \u2192 index',
+                rule: r === 0
+                    ? 'First rotation is the word with $ appended'
+                    : 'Move the first character to the end \u2014 circular shift',
+                index:idx.slice(), newEntry:idx.length-1,
+                anim: r > 0, movedIdx: cur.length-1 });
+            cur = cur.slice(1) + cur[0];
+        }
+    });
+
+    var sorted = idx.slice().sort(function(a,b) { return a.rot < b.rot ? -1 : a.rot > b.rot ? 1 : 0; });
+    S.push({ phase:'build', type:'sort', tiles:[],
+        desc:'Index complete \u2014 ' + idx.length + ' rotations from ' + terms.length + ' term' + (terms.length>1?'s':'') + '. Sorting alphabetically.',
+        rule:'Sorted order enables efficient prefix lookup in a B-tree',
+        index:sorted, sorted:true, newEntry:-1 });
+
+    S.push({ phase:'transition', type:'transition', tiles:[],
+        desc:'', rule:'',
+        index:sorted, sorted:true, newEntry:-1 });
+
+    // Phase 2: Query
+    S.push({ phase:'query', type:'show-query', tiles:query.split(''),
+        desc:'Wildcard query: "' + query + '"',
+        rule:'* matches zero or more characters in any position',
+        index:sorted, sorted:true, newEntry:-1 });
+
+    var qd = query + '$';
+    S.push({ phase:'query', type:'append', tiles:qd.split(''),
+        desc:'Append $ \u2192 "' + qd + '"',
+        rule:'Same $ marker keeps the query aligned with index rotations',
+        index:sorted, sorted:true, newEntry:-1, hlLast:true });
+
+    var qc = qd;
+    while (qc[qc.length-1] !== '*') {
+        qc = qc.slice(1) + qc[0];
+        var done = qc[qc.length-1] === '*';
+        S.push({ phase:'query', type:'q-rot', tiles:qc.split(''),
+            desc: done ? 'Rotate \u2192 "' + qc + '" \u2014 \u2713 wildcard is at the end!'
+                       : 'Rotate \u2192 "' + qc + '" \u2014 * not at end yet\u2026',
+            rule: done ? 'Now everything before * is a B-tree prefix we can look up'
+                       : 'Keep rotating until * reaches the last position',
+            index:sorted, sorted:true, newEntry:-1,
+            anim:true, movedIdx:qc.length-1, starDone:done });
+    }
+
+    var prefix = qc.slice(0,-1);
+    S.push({ phase:'query', type:'prefix', tiles:qc.split(''),
+        desc:'Search prefix: "' + prefix + '"',
+        rule:'Find all index entries that start with "' + prefix + '"',
+        index:sorted, sorted:true, newEntry:-1, prefixLen:prefix.length });
+
+    var matchIdxs = [];
+    sorted.forEach(function(e,i) { if (e.rot.indexOf(prefix) === 0) matchIdxs.push(i); });
+
+    S.push({ phase:'query', type:'search', tiles:qc.split(''),
+        desc:'Found ' + matchIdxs.length + ' matching rotation' + (matchIdxs.length!==1?'s':''),
+        rule:'Each matching rotation points back to its original term',
+        index:sorted, sorted:true, newEntry:-1,
+        matches:matchIdxs, prefixLen:prefix.length });
+
+    var seen = {};
+    var resultTerms = [];
+    matchIdxs.forEach(function(i) {
+        var t = sorted[i].orig;
+        if (!seen[t]) { seen[t] = true; resultTerms.push(t); }
+    });
+    S.push({ phase:'query', type:'result', tiles:[],
+        desc:'"' + query + '" matches: ' + resultTerms.join(', '),
+        rule:'', index:sorted, sorted:true, newEntry:-1,
+        matches:matchIdxs, resultTerms:resultTerms });
+
+    return S;
+}
+
+// ============================================================
+//  RENDERING — safe DOM methods (no innerHTML for data)
+// ============================================================
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function renderTiles(step) {
+    var row = document.getElementById('tileRow');
+    clearChildren(row);
+    if (!step.tiles.length) return;
+
+    step.tiles.forEach(function(ch, i) {
+        var t = document.createElement('div');
+        t.className = 'tile';
+        t.textContent = ch;
+        if (ch === '$') t.classList.add('dollar');
+        if (ch === '*') t.classList.add('star');
+        if (step.hlLast && i === step.tiles.length - 1) t.classList.add('highlight');
+        if (step.anim && step.movedIdx === i) t.classList.add('moved');
+        if (step.prefixLen != null && i < step.prefixLen) t.classList.add('prefix-hi');
+        if (step.starDone && ch === '*') t.classList.add('star-done');
+        row.appendChild(t);
+    });
+}
+
+function renderIndex(step) {
+    var el = document.getElementById('indexEntries');
+    var countEl = document.getElementById('indexCount');
+    clearChildren(el);
+
+    if (!step.index.length) {
+        var empty = document.createElement('div');
+        empty.className = 'index-empty';
+        empty.textContent = 'Empty \u2014 step through to build it';
+        el.appendChild(empty);
+        countEl.textContent = '';
+        return;
+    }
+
+    step.index.forEach(function(entry, i) {
+        var d = document.createElement('div');
+        d.className = 'index-entry';
+        if (i === step.newEntry) d.classList.add('new-entry');
+        var isMatch = step.matches && step.matches.indexOf(i) !== -1;
+        if (isMatch) d.classList.add('match');
+
+        var col = TERM_COLORS[entry.ti % TERM_COLORS.length];
+
+        // Rotation text (with optional prefix highlight)
+        var rotSpan = document.createElement('span');
+        rotSpan.className = 'rotation';
+        rotSpan.style.color = col;
+        if (isMatch && step.prefixLen) {
+            var hlSpan = document.createElement('span');
+            hlSpan.className = 'prefix-hl';
+            hlSpan.textContent = entry.rot.slice(0, step.prefixLen);
+            rotSpan.appendChild(hlSpan);
+            rotSpan.appendChild(document.createTextNode(entry.rot.slice(step.prefixLen)));
+        } else {
+            rotSpan.textContent = entry.rot;
+        }
+
+        var arrow = document.createElement('span');
+        arrow.className = 'arrow';
+        arrow.textContent = '\u2192';
+
+        var orig = document.createElement('span');
+        orig.className = 'original';
+        orig.textContent = entry.orig;
+
+        d.appendChild(rotSpan);
+        d.appendChild(arrow);
+        d.appendChild(orig);
+        el.appendChild(d);
+    });
+
+    if (step.newEntry >= 0) {
+        var entries = el.querySelectorAll('.index-entry');
+        if (entries[step.newEntry]) {
+            entries[step.newEntry].scrollIntoView({ behavior:'smooth', block:'nearest' });
+        }
+    }
+
+    countEl.textContent = step.index.length + ' entries';
+}
+
+function renderStep(i) {
+    if (i < 0 || i >= steps.length) return;
+    var s = steps[i];
+
+    // Phase label
+    var pl = document.getElementById('phaseLabel');
+    if (s.phase === 'build') {
+        pl.textContent = 'Phase 1 \u2014 Building the Index';
+        pl.className = 'phase-label build';
+    } else if (s.phase === 'query') {
+        pl.textContent = 'Phase 2 \u2014 Resolving the Wildcard';
+        pl.className = 'phase-label query';
+    } else {
+        pl.textContent = '';
+        pl.className = 'phase-label';
+    }
+
+    // Term label
+    var tl = document.getElementById('termLabel');
+    clearChildren(tl);
+    if (s.phase === 'build' && s.term) {
+        tl.appendChild(document.createTextNode('Current term: '));
+        var strong = document.createElement('strong');
+        strong.style.color = TERM_COLORS[s.termIdx % TERM_COLORS.length];
+        strong.textContent = '"' + s.term + '"';
+        tl.appendChild(strong);
+    }
+
+    // Tiles
+    if (s.type === 'transition') {
+        clearChildren(document.getElementById('tileRow'));
+    } else {
+        renderTiles(s);
+    }
+
+    // Description
+    var descEl = document.getElementById('stepDesc');
+    descEl.textContent = s.type === 'transition' ? '' : s.desc;
+
+    // Rule
+    document.getElementById('ruleNote').textContent = s.rule || '';
+
+    // Extra box
+    var extra = document.getElementById('extraBox');
+    clearChildren(extra);
+    if (s.type === 'result' && s.resultTerms) {
+        var rb = document.createElement('div');
+        rb.className = 'result-box';
+        rb.textContent = '\u2713 Result: ' + s.resultTerms.join(', ');
+        extra.appendChild(rb);
+    } else if (s.type === 'transition') {
+        var pd = document.createElement('div');
+        pd.className = 'phase-divider';
+        var ck = document.createElement('span');
+        ck.className = 'check';
+        ck.textContent = '\u2713';
+        pd.appendChild(ck);
+        pd.appendChild(document.createTextNode(' Phase 1 complete \u2014 index built'));
+        pd.appendChild(document.createElement('br'));
+        pd.appendChild(document.createTextNode('Next: use it to resolve the wildcard query'));
+        extra.appendChild(pd);
+    }
+
+    // Index
+    renderIndex(s);
+
+    // Controls
+    document.getElementById('prevBtn').disabled = i <= 0;
+    document.getElementById('nextBtn').disabled = i >= steps.length - 1;
+    document.getElementById('stepCounter').textContent = 'Step ' + (i + 1) + ' / ' + steps.length;
+}
+
+// ============================================================
+//  ANIMATION (Web Animations API)
+// ============================================================
+function animateRotation(callback) {
+    var row = document.getElementById('tileRow');
+    var tiles = Array.prototype.slice.call(row.children);
+    if (tiles.length < 2) { callback(); return; }
+
+    animating = true;
+    var first = tiles[0];
+    var gap = 5;
+    var tw = first.offsetWidth + gap;
+    var totalShift = tw * (tiles.length - 1);
+
+    var firstAnim = first.animate([
+        { transform:'translate(0,0)',                   opacity:1   },
+        { transform:'translate(0,44px)',                opacity:0.5, offset:0.28 },
+        { transform:'translate(' + totalShift + 'px,44px)',  opacity:0.5, offset:0.72 },
+        { transform:'translate(' + totalShift + 'px,0)',     opacity:1   },
+    ], { duration:520, easing:'ease-in-out', fill:'forwards' });
+
+    tiles.slice(1).forEach(function(t) {
+        t.animate([
+            { transform:'translateX(0)' },
+            { transform:'translateX(-' + tw + 'px)' },
+        ], { duration:360, easing:'ease-out', delay:80, fill:'forwards' });
+    });
+
+    firstAnim.finished.then(function() {
+        tiles.forEach(function(t) {
+            t.getAnimations().forEach(function(a) { a.cancel(); });
+        });
+        animating = false;
+        callback();
+    });
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function goToStep(i, withAnim) {
+    if (withAnim === undefined) withAnim = true;
+    if (animating) return;
+    if (i < 0 || i >= steps.length) return;
+
+    var step = steps[i];
+    var advancing = i > currentStep;
+
+    if (advancing && step.anim && withAnim) {
+        if (i > 0) renderTiles(steps[i - 1]);
+        animateRotation(function() { currentStep = i; renderStep(i); });
+    } else {
+        currentStep = i;
+        renderStep(i);
+    }
+}
+
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1, false); }
+
+// ============================================================
+//  PRESETS & AUTOPLAY
+// ============================================================
+function loadPreset(name) {
+    var p = PRESETS[name];
+    if (!p) return;
+    steps = generateSteps(p.terms, p.query);
+    currentStep = 0;
+    stopAutoplay();
+    document.getElementById('autoplayCheck').checked = false;
+    document.querySelectorAll('.preset-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.preset === name);
+    });
+    renderStep(0);
+}
+
+function startAutoplay() {
+    var ms = parseInt(document.getElementById('speedRange').value);
+    autoplayTimer = setInterval(function() {
+        if (animating) return;
+        if (currentStep >= steps.length - 1) {
+            stopAutoplay();
+            document.getElementById('autoplayCheck').checked = false;
+            return;
+        }
+        nextStep();
+    }, ms);
+}
+
+function stopAutoplay() {
+    if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+}
+
+// ============================================================
+//  EVENTS
+// ============================================================
+document.getElementById('nextBtn').addEventListener('click', nextStep);
+document.getElementById('prevBtn').addEventListener('click', prevStep);
+
+document.querySelectorAll('.preset-btn').forEach(function(b) {
+    b.addEventListener('click', function() { loadPreset(b.dataset.preset); });
+});
+
+document.getElementById('autoplayCheck').addEventListener('change', function(e) {
+    if (e.target.checked) startAutoplay(); else stopAutoplay();
+});
+
+document.getElementById('speedRange').addEventListener('input', function(e) {
+    document.getElementById('speedLabel').textContent = (e.target.value/1000).toFixed(1)+'s';
+    if (autoplayTimer) { stopAutoplay(); startAutoplay(); }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+    if (e.key === 'ArrowLeft')                    { e.preventDefault(); prevStep(); }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+loadPreset('teaching');
+</script>
+</body>
+</html>
