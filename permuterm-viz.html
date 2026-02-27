@@ -321,14 +321,10 @@ function generateSteps(terms, query) {
     });
 
     var sorted = idx.slice().sort(function(a,b) { return a.rot < b.rot ? -1 : a.rot > b.rot ? 1 : 0; });
-    S.push({ phase:'build', type:'sort', tiles:[],
-        desc:'Index complete \u2014 ' + idx.length + ' rotations from ' + terms.length + ' term' + (terms.length>1?'s':'') + '. Sorting alphabetically.',
-        rule:'Sorted order enables efficient prefix lookup in a B-tree',
-        index:sorted, sorted:true, newEntry:-1 });
-
     S.push({ phase:'transition', type:'transition', tiles:[],
         desc:'', rule:'',
-        index:sorted, sorted:true, newEntry:-1 });
+        index:sorted, sorted:true, newEntry:-1,
+        entryCount:idx.length, termCount:terms.length });
 
     // Phase 2: Query
     S.push({ phase:'query', type:'show-query', tiles:query.split(''),
@@ -500,9 +496,14 @@ function renderStep(i) {
     }
 
     // Tiles
+    var tileContainer = document.getElementById('tileRow').parentElement;
     if (s.type === 'transition') {
         clearChildren(document.getElementById('tileRow'));
+        tileContainer.style.minHeight = '0';
+        tileContainer.style.marginBottom = '0';
     } else {
+        tileContainer.style.minHeight = '';
+        tileContainer.style.marginBottom = '';
         renderTiles(s);
     }
 
@@ -528,9 +529,9 @@ function renderStep(i) {
         ck.className = 'check';
         ck.textContent = '\u2713';
         pd.appendChild(ck);
-        pd.appendChild(document.createTextNode(' Phase 1 complete \u2014 index built'));
+        pd.appendChild(document.createTextNode(' Phase 1 complete \u2014 ' + s.entryCount + ' rotations from ' + s.termCount + ' term' + (s.termCount>1?'s':'') + ', sorted alphabetically'));
         pd.appendChild(document.createElement('br'));
-        pd.appendChild(document.createTextNode('Next: use it to resolve the wildcard query'));
+        pd.appendChild(document.createTextNode('Next: use the index to resolve the wildcard query'));
         extra.appendChild(pd);
     }
 
