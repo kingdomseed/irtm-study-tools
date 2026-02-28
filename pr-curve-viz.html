@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision-Recall Curve — Step-Through Visualizer</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --accent-interp: #059669;
+            --border: #d1d5db;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg); color: var(--text);
+            line-height: 1.7; font-size: 18px;
+        }
+        .container { max-width: 1060px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+        .back-link {
+            position: fixed; top: 0.75rem; left: 1rem; z-index: 100;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.8rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 6px; text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.8rem; color: var(--accent);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s;
+        }
+        .back-link:hover { background: #eff6ff; border-color: var(--accent); }
+
+        header { text-align: center; margin-bottom: 1.5rem; }
+        header h1 { font-size: 1.8rem; margin-bottom: 0.15rem; }
+        header .subtitle { color: #6b7280; font-size: 0.95rem; }
+
+        /* Presets */
+        .presets {
+            display: flex; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.45rem 1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.85rem; transition: all 0.2s;
+        }
+        .preset-btn:hover { border-color: var(--accent); }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Legend */
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 0.6rem;
+            margin-bottom: 0.75rem; justify-content: center;
+        }
+        .legend-item {
+            font-family: -apple-system, sans-serif;
+            font-size: 0.7rem; display: flex; align-items: center; gap: 0.25rem;
+        }
+        .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+        .legend-dot.lg-raw { background: #dbeafe; border: 1px solid var(--accent); }
+        .legend-dot.lg-interp { background: #d1fae5; border: 1px solid var(--accent-interp); }
+        .legend-dot.lg-current { background: #fef3c7; border: 1px solid #f59e0b; }
+
+        /* Main area */
+        .main-area {
+            display: grid; grid-template-columns: 1fr 300px;
+            gap: 1.25rem; margin-bottom: 1.25rem;
+        }
+
+        /* Graph panel */
+        .graph-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.25rem;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .phase-label {
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+            font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin-bottom: 0.5rem; transition: color 0.3s;
+        }
+        .phase-label.build { color: var(--accent); }
+        .phase-label.interp { color: var(--accent-interp); }
+        .phase-label.result { color: #22c55e; }
+
+        .graph-svg {
+            width: 100%; max-width: 480px; aspect-ratio: 1;
+        }
+        .graph-svg text {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .step-desc {
+            font-size: 0.95rem; text-align: center;
+            padding: 0.8rem 1rem; background: #f8f9fa;
+            border-radius: 6px; margin-top: 0.75rem;
+            min-height: 2.8rem; display: flex; align-items: center; justify-content: center;
+            width: 100%;
+        }
+        .rule-note {
+            font-size: 0.78rem; color: #6b7280; text-align: center;
+            margin-top: 0.5rem; font-style: italic;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .result-box {
+            text-align: center; padding: 1rem;
+            background: #dcfce7; border: 2px solid #22c55e;
+            border-radius: 8px; font-size: 1.05rem;
+            font-weight: 600; margin-top: 0.75rem; width: 100%;
+        }
+
+        /* Table panel */
+        .table-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1rem 0.75rem;
+            overflow-y: auto; max-height: 560px;
+        }
+        .table-panel h3 {
+            font-size: 0.95rem; margin-bottom: 0.6rem;
+            padding-bottom: 0.4rem; border-bottom: 2px solid var(--bg);
+            padding-left: 0.25rem;
+        }
+        .pr-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.78rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .pr-table th {
+            font-family: -apple-system, sans-serif;
+            font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 0.04em; color: #6b7280;
+            padding: 0.35rem 0.3rem; border-bottom: 2px solid var(--border);
+            text-align: center; font-weight: 600;
+        }
+        .pr-table td {
+            padding: 0.4rem 0.3rem; text-align: center;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .pr-table tr.current td { background: #fef3c7; font-weight: 600; }
+        .pr-table tr.filled td { background: white; }
+        .pr-table tr.relevant td.rel-cell { color: #22c55e; font-weight: 700; }
+        .pr-table tr.not-relevant td.rel-cell { color: #ef4444; }
+        .pr-table td.interp-cell { font-weight: 600; }
+        .pr-table td.interp-own { color: var(--accent); }
+        .pr-table td.interp-carry { color: var(--accent-interp); }
+        .pr-table .empty-cell { color: #d1d5db; }
+        .pr-table .gold-info {
+            font-family: -apple-system, sans-serif;
+            font-size: 0.72rem; color: #6b7280;
+            padding: 0.5rem 0.3rem; text-align: left;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 1.25rem; padding: 0.8rem 1rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 0.6rem;
+        }
+        .controls button {
+            padding: 0.55rem 1.1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: inherit; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .controls button:hover:not(:disabled) {
+            background: var(--accent); color: white; border-color: var(--accent);
+        }
+        .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .step-counter {
+            font-size: 0.85rem; color: #6b7280; min-width: 120px; text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.75rem; font-size: 0.8rem; color: #6b7280;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row label { cursor: pointer; }
+        .autoplay-row input[type="range"] { width: 90px; }
+        .kbd-hint {
+            text-align: center; margin-top: 1rem;
+            font-size: 0.75rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .kbd-hint kbd {
+            background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 3px; padding: 0.1rem 0.35rem; font-size: 0.72rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-area { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">&larr; Home</a>
+    <div class="container">
+        <header>
+            <h1>Precision-Recall Curve</h1>
+            <p class="subtitle">Step-through visualizer &mdash; raw &amp; interpolated</p>
+        </header>
+
+        <div class="presets">
+            <button class="preset-btn active" data-preset="ws2425">WS24/25</button>
+            <button class="preset-btn" data-preset="ws2122">WS21/22</button>
+            <button class="preset-btn" data-preset="a3">Assignment 3</button>
+        </div>
+
+        <div class="legend">
+            <span class="legend-item"><span class="legend-dot lg-raw"></span> Raw curve</span>
+            <span class="legend-item"><span class="legend-dot lg-interp"></span> Interpolated</span>
+            <span class="legend-item"><span class="legend-dot lg-current"></span> Current step</span>
+        </div>
+
+        <div class="main-area">
+            <div class="graph-panel">
+                <div class="phase-label build" id="phaseLabel">Phase 1 &mdash; Building the Table</div>
+                <svg class="graph-svg" id="graphSvg" viewBox="0 0 400 400"></svg>
+                <div class="step-desc" id="stepDesc">Click "Next Step" to begin</div>
+                <div class="rule-note" id="ruleNote"></div>
+                <div id="resultBox"></div>
+            </div>
+            <div class="table-panel">
+                <h3>P@k &amp; R@k Table</h3>
+                <table class="pr-table" id="prTable"></table>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>&larr; Back</button>
+            <span class="step-counter" id="stepCounter">Ready</span>
+            <button id="nextBtn">Next Step &rarr;</button>
+        </div>
+        <div class="autoplay-row">
+            <label><input type="checkbox" id="autoplayCheck"> Auto-play</label>
+            <input type="range" id="speedRange" min="400" max="3000" value="1200" step="100">
+            <span id="speedLabel">1.2s</span>
+        </div>
+        <div class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>Space</kbd> to navigate</div>
+    </div>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+var PRESETS = {
+    ws2425: {
+        label: 'WS24/25',
+        ranked: [1, 3, 5, 9, 2],
+        gold: [1, 2, 4, 8, 9]
+    },
+    ws2122: {
+        label: 'WS21/22',
+        ranked: [1, 3, 4, 7, 9, 11, 8],
+        gold: [1, 2, 3, 4, 8]
+    },
+    a3: {
+        label: 'Assignment 3',
+        ranked: [128, 7, 9, 3, 35, 32, 41, 64],
+        gold: [3, 34, 41, 64, 128]
+    }
+};
+
+var steps = [];
+var currentStep = 0;
+var autoplayTimer = null;
+
+// ============================================================
+//  GRAPH CONSTANTS
+// ============================================================
+var PAD = { top: 20, right: 20, bottom: 45, left: 50 };
+var GW = 400 - PAD.left - PAD.right;
+var GH = 400 - PAD.top - PAD.bottom;
+
+function toX(recall) { return PAD.left + recall * GW; }
+function toY(prec) { return PAD.top + (1 - prec) * GH; }
+
+// ============================================================
+//  STEP GENERATION
+// ============================================================
+function generateSteps(preset) {
+    var ranked = preset.ranked;
+    var gold = preset.gold;
+    var goldSet = {};
+    gold.forEach(function(d) { goldSet[d] = true; });
+    var totalRel = gold.length;
+    var S = [];
+
+    // Initial step
+    S.push({
+        phase: 'build', type: 'init',
+        rows: [], rawPoints: [],
+        desc: 'Ranked: (' + ranked.join(', ') + ')  \u00B7  Gold: {' + gold.join(', ') + '}',
+        rule: totalRel + ' relevant documents total \u2014 recall denominator is always ' + totalRel,
+        interpRows: null, interpPoints: null
+    });
+
+    // Phase 1: Build table row by row
+    var relSoFar = 0;
+    var rows = [];
+    var rawPoints = [];
+
+    for (var k = 0; k < ranked.length; k++) {
+        var doc = ranked[k];
+        var isRel = goldSet[doc] === true;
+        if (isRel) relSoFar++;
+
+        var pk = relSoFar / (k + 1);
+        var rk = relSoFar / totalRel;
+
+        rows.push({ rank: k + 1, doc: doc, rel: isRel, pk: pk, rk: rk, relSoFar: relSoFar });
+        rawPoints.push({ r: rk, p: pk });
+
+        var desc = 'Rank ' + (k + 1) + ': doc ' + doc;
+        if (isRel) {
+            desc += ' \u2713 relevant \u2014 P@' + (k+1) + ' = ' + relSoFar + '/' + (k+1) + ' = ' + pk.toFixed(3);
+            desc += ', R@' + (k+1) + ' = ' + relSoFar + '/' + totalRel + ' = ' + rk.toFixed(3);
+        } else {
+            desc += ' \u2717 not relevant \u2014 P@' + (k+1) + ' = ' + relSoFar + '/' + (k+1) + ' = ' + pk.toFixed(3);
+            desc += ', R@' + (k+1) + ' = ' + relSoFar + '/' + totalRel + ' = ' + rk.toFixed(3);
+        }
+
+        S.push({
+            phase: 'build', type: 'row',
+            rows: rows.slice(), rawPoints: rawPoints.slice(),
+            currentRow: k,
+            desc: desc,
+            rule: isRel
+                ? 'Relevant! Both numerators increase. Precision = ' + relSoFar + '/' + (k+1) + ', Recall = ' + relSoFar + '/' + totalRel
+                : 'Not relevant. Precision drops (denominator grows), recall unchanged.',
+            interpRows: null, interpPoints: null
+        });
+    }
+
+    // Transition to Phase 2
+    S.push({
+        phase: 'transition', type: 'transition',
+        rows: rows.slice(), rawPoints: rawPoints.slice(),
+        desc: '',
+        rule: '',
+        interpRows: null, interpPoints: null
+    });
+
+    // Phase 2: Interpolation — scan bottom to top
+    var interpVals = [];
+    for (var i = 0; i < rows.length; i++) {
+        interpVals.push(null);
+    }
+
+    var carry = 0;
+    var interpFilledRows = [];
+
+    for (var j = rows.length - 1; j >= 0; j--) {
+        var row = rows[j];
+        var ownVal = row.pk;
+        var useCarry = carry > ownVal;
+        var interpVal = Math.max(ownVal, carry);
+        interpVals[j] = { val: interpVal, isCarry: useCarry };
+        carry = interpVal;
+
+        // Build filled array for display
+        interpFilledRows = [];
+        for (var fi = 0; fi < rows.length; fi++) {
+            interpFilledRows.push(interpVals[fi]); // null for unfilled
+        }
+
+        // Build interpolated points for plotting (only filled ones)
+        var interpPoints = [];
+        for (var pi = 0; pi < rows.length; pi++) {
+            if (interpVals[pi] !== null) {
+                interpPoints.push({ r: rows[pi].rk, p: interpVals[pi].val });
+            }
+        }
+
+        var desc2;
+        if (j === rows.length - 1) {
+            desc2 = 'Start at bottom: P_interp = P@' + (j+1) + ' = ' + ownVal.toFixed(3);
+        } else {
+            desc2 = 'Rank ' + (j+1) + ': P@k = ' + ownVal.toFixed(3) + ' vs carry = ' + carry.toFixed(3);
+            if (useCarry) {
+                desc2 = 'Rank ' + (j+1) + ': P@k = ' + ownVal.toFixed(3) + ' < carry ' + interpVal.toFixed(3) + ' \u2192 use carry';
+            } else {
+                desc2 = 'Rank ' + (j+1) + ': P@k = ' + ownVal.toFixed(3) + ' \u2265 carry \u2192 keep own value';
+            }
+        }
+
+        S.push({
+            phase: 'interp', type: 'interp-row',
+            rows: rows.slice(), rawPoints: rawPoints.slice(),
+            currentRow: j,
+            desc: desc2,
+            rule: j === rows.length - 1
+                ? 'Bottom row always keeps its own P@k'
+                : useCarry
+                    ? 'A higher precision exists below \u2014 this recall level inherits it'
+                    : 'Own precision is already the max from here down',
+            interpRows: interpFilledRows.slice(),
+            interpPoints: interpPoints.slice()
+        });
+    }
+
+    // Phase 3: Result
+    // Compute unique interpolated coordinates
+    var uniqueInterp = [];
+    var seenRecall = {};
+    for (var ui = 0; ui < rows.length; ui++) {
+        var rk2 = rows[ui].rk;
+        var rKey = rk2.toFixed(4);
+        if (!seenRecall[rKey]) {
+            seenRecall[rKey] = true;
+            // At this recall, take the max P_interp
+            var maxP = 0;
+            for (var uj = 0; uj < rows.length; uj++) {
+                if (rows[uj].rk.toFixed(4) === rKey && interpVals[uj] !== null) {
+                    maxP = Math.max(maxP, interpVals[uj].val);
+                }
+            }
+            uniqueInterp.push({ r: rk2, p: maxP });
+        }
+    }
+
+    // Compute AP
+    var apSum = 0;
+    for (var ai = 0; ai < rows.length; ai++) {
+        if (rows[ai].rel) apSum += rows[ai].pk;
+    }
+    var ap = apSum / totalRel;
+
+    var coordStr = uniqueInterp.map(function(pt) {
+        return '(' + pt.r.toFixed(2) + ', ' + pt.p.toFixed(3) + ')';
+    }).join('  ');
+
+    S.push({
+        phase: 'result', type: 'result',
+        rows: rows.slice(), rawPoints: rawPoints.slice(),
+        desc: 'Interpolated coordinates: ' + coordStr,
+        rule: 'AP = ' + apSum.toFixed(3) + ' / ' + totalRel + ' = ' + ap.toFixed(3),
+        interpRows: interpFilledRows.slice(),
+        interpPoints: uniqueInterp.slice(),
+        ap: ap, uniqueInterp: uniqueInterp
+    });
+
+    return S;
+}
+
+// ============================================================
+//  RENDERING
+// ============================================================
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function svgEl(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) {
+        el.setAttribute(k, attrs[k]);
+    }
+    return el;
+}
+
+function renderGraph(step) {
+    var svg = document.getElementById('graphSvg');
+    clearChildren(svg);
+
+    // Background
+    svg.appendChild(svgEl('rect', { x:0, y:0, width:400, height:400, fill:'white', rx:4 }));
+
+    // Grid lines
+    for (var g = 0; g <= 5; g++) {
+        var v = g * 0.2;
+        // Vertical grid
+        svg.appendChild(svgEl('line', {
+            x1: toX(v), y1: PAD.top, x2: toX(v), y2: PAD.top + GH,
+            stroke: '#f3f4f6', 'stroke-width': 1
+        }));
+        // Horizontal grid
+        svg.appendChild(svgEl('line', {
+            x1: PAD.left, y1: toY(v), x2: PAD.left + GW, y2: toY(v),
+            stroke: '#f3f4f6', 'stroke-width': 1
+        }));
+        // X labels
+        var xl = svgEl('text', {
+            x: toX(v), y: PAD.top + GH + 18,
+            'text-anchor': 'middle', 'font-size': '11', fill: '#6b7280'
+        });
+        xl.textContent = v.toFixed(1);
+        svg.appendChild(xl);
+        // Y labels
+        var yl = svgEl('text', {
+            x: PAD.left - 8, y: toY(v) + 4,
+            'text-anchor': 'end', 'font-size': '11', fill: '#6b7280'
+        });
+        yl.textContent = v.toFixed(1);
+        svg.appendChild(yl);
+    }
+
+    // Axes
+    svg.appendChild(svgEl('line', {
+        x1: PAD.left, y1: PAD.top, x2: PAD.left, y2: PAD.top + GH,
+        stroke: '#374151', 'stroke-width': 1.5
+    }));
+    svg.appendChild(svgEl('line', {
+        x1: PAD.left, y1: PAD.top + GH, x2: PAD.left + GW, y2: PAD.top + GH,
+        stroke: '#374151', 'stroke-width': 1.5
+    }));
+
+    // Axis labels
+    var xLabel = svgEl('text', {
+        x: PAD.left + GW / 2, y: 395,
+        'text-anchor': 'middle', 'font-size': '13', fill: '#374151', 'font-weight': '600'
+    });
+    xLabel.textContent = 'Recall';
+    svg.appendChild(xLabel);
+
+    var yLabel = svgEl('text', {
+        x: 14, y: PAD.top + GH / 2,
+        'text-anchor': 'middle', 'font-size': '13', fill: '#374151', 'font-weight': '600',
+        transform: 'rotate(-90, 14, ' + (PAD.top + GH / 2) + ')'
+    });
+    yLabel.textContent = 'Precision';
+    svg.appendChild(yLabel);
+
+    // Raw curve (blue)
+    var rawPts = step.rawPoints || [];
+    if (rawPts.length > 0) {
+        var showInterp = step.interpPoints && step.interpPoints.length > 0;
+        var rawDash = showInterp ? '4,3' : 'none';
+        var rawOpacity = showInterp ? '0.5' : '1';
+
+        // Lines
+        if (rawPts.length > 1) {
+            var pathD = 'M ' + toX(rawPts[0].r) + ' ' + toY(rawPts[0].p);
+            for (var ri = 1; ri < rawPts.length; ri++) {
+                pathD += ' L ' + toX(rawPts[ri].r) + ' ' + toY(rawPts[ri].p);
+            }
+            svg.appendChild(svgEl('path', {
+                d: pathD, fill: 'none', stroke: '#2563eb',
+                'stroke-width': showInterp ? 1.5 : 2,
+                'stroke-dasharray': rawDash,
+                opacity: rawOpacity
+            }));
+        }
+
+        // Points
+        for (var rj = 0; rj < rawPts.length; rj++) {
+            var isCurrent = step.phase === 'build' && step.currentRow === rj;
+            svg.appendChild(svgEl('circle', {
+                cx: toX(rawPts[rj].r), cy: toY(rawPts[rj].p),
+                r: isCurrent ? 6 : 4,
+                fill: isCurrent ? '#f59e0b' : '#2563eb',
+                stroke: isCurrent ? '#d97706' : 'white',
+                'stroke-width': isCurrent ? 2 : 1.5,
+                opacity: showInterp ? '0.5' : '1'
+            }));
+        }
+    }
+
+    // Interpolated curve (green staircase)
+    var interpPts = step.interpPoints || [];
+    if (interpPts.length > 0) {
+        // Draw as staircase: at each point, horizontal line to next recall, then vertical drop
+        var stairD = 'M ' + toX(interpPts[0].r) + ' ' + toY(interpPts[0].p);
+        for (var si = 1; si < interpPts.length; si++) {
+            // Horizontal to new recall at current precision
+            stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si - 1].p);
+            // Vertical to new precision
+            stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si].p);
+        }
+        svg.appendChild(svgEl('path', {
+            d: stairD, fill: 'none', stroke: '#059669',
+            'stroke-width': 2.5
+        }));
+
+        // Points
+        for (var sj = 0; sj < interpPts.length; sj++) {
+            svg.appendChild(svgEl('circle', {
+                cx: toX(interpPts[sj].r), cy: toY(interpPts[sj].p),
+                r: 5, fill: '#059669', stroke: 'white', 'stroke-width': 1.5
+            }));
+        }
+    }
+
+    // Highlight current interp row's source cell
+    if (step.phase === 'interp' && step.currentRow != null) {
+        var row = step.rows[step.currentRow];
+        var interpData = step.interpRows[step.currentRow];
+        if (interpData) {
+            svg.appendChild(svgEl('circle', {
+                cx: toX(row.rk), cy: toY(interpData.val),
+                r: 7, fill: 'none', stroke: '#f59e0b', 'stroke-width': 2.5
+            }));
+        }
+    }
+}
+
+function renderTable(step) {
+    var table = document.getElementById('prTable');
+    clearChildren(table);
+
+    var showInterp = step.interpRows !== null;
+    var preset = getCurrentPreset();
+
+    // Gold set info row
+    var goldInfo = document.createElement('tr');
+    var goldTd = document.createElement('td');
+    goldTd.className = 'gold-info';
+    goldTd.colSpan = showInterp ? 6 : 5;
+    goldTd.textContent = 'Gold: {' + preset.gold.join(', ') + '} \u2014 ' + preset.gold.length + ' relevant';
+    goldInfo.appendChild(goldTd);
+    table.appendChild(goldInfo);
+
+    // Header
+    var thead = document.createElement('tr');
+    var headers = ['Rank', 'Doc', 'Rel?', 'P@k', 'R@k'];
+    if (showInterp) headers.push('P_interp');
+    headers.forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        thead.appendChild(th);
+    });
+    table.appendChild(thead);
+
+    // Rows
+    var rows = step.rows || [];
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var tr = document.createElement('tr');
+        var isCurrent = step.currentRow === i;
+        if (isCurrent) tr.className = 'current';
+        else tr.className = 'filled';
+        if (r.rel) tr.classList.add('relevant');
+        else tr.classList.add('not-relevant');
+
+        // Rank
+        var td1 = document.createElement('td');
+        td1.textContent = r.rank;
+        tr.appendChild(td1);
+
+        // Doc
+        var td2 = document.createElement('td');
+        td2.textContent = r.doc;
+        tr.appendChild(td2);
+
+        // Relevant?
+        var td3 = document.createElement('td');
+        td3.className = 'rel-cell';
+        td3.textContent = r.rel ? '\u2713' : '\u2717';
+        tr.appendChild(td3);
+
+        // P@k
+        var td4 = document.createElement('td');
+        td4.textContent = r.pk.toFixed(3);
+        tr.appendChild(td4);
+
+        // R@k
+        var td5 = document.createElement('td');
+        td5.textContent = r.rk.toFixed(3);
+        tr.appendChild(td5);
+
+        // P_interp
+        if (showInterp) {
+            var td6 = document.createElement('td');
+            td6.className = 'interp-cell';
+            var interpData = step.interpRows[i];
+            if (interpData !== null) {
+                td6.textContent = interpData.val.toFixed(3);
+                td6.classList.add(interpData.isCarry ? 'interp-carry' : 'interp-own');
+            } else {
+                td6.textContent = '\u2014';
+                td6.className = 'empty-cell';
+            }
+            tr.appendChild(td6);
+        }
+
+        table.appendChild(tr);
+    }
+}
+
+function renderStep(idx) {
+    if (idx < 0 || idx >= steps.length) return;
+    var step = steps[idx];
+
+    // Phase label
+    var pl = document.getElementById('phaseLabel');
+    if (step.phase === 'build') {
+        pl.textContent = 'Phase 1 \u2014 Building the Table';
+        pl.className = 'phase-label build';
+    } else if (step.phase === 'interp') {
+        pl.textContent = 'Phase 2 \u2014 Interpolation (bottom \u2192 top)';
+        pl.className = 'phase-label interp';
+    } else if (step.phase === 'result') {
+        pl.textContent = 'Result';
+        pl.className = 'phase-label result';
+    } else if (step.phase === 'transition') {
+        pl.textContent = '';
+        pl.className = 'phase-label';
+    }
+
+    // Graph
+    renderGraph(step);
+
+    // Table
+    renderTable(step);
+
+    // Description
+    var descEl = document.getElementById('stepDesc');
+    if (step.type === 'transition') {
+        descEl.style.display = 'none';
+    } else {
+        descEl.textContent = step.desc;
+        descEl.style.display = '';
+    }
+
+    // Rule
+    document.getElementById('ruleNote').textContent = step.rule || '';
+
+    // Result box
+    var resultBox = document.getElementById('resultBox');
+    clearChildren(resultBox);
+    if (step.type === 'transition') {
+        var pd = document.createElement('div');
+        pd.style.cssText = 'text-align:center;padding:1.5rem 1rem;color:#6b7280;font-size:1rem;';
+        var ck = document.createElement('span');
+        ck.style.color = '#22c55e';
+        ck.style.fontSize = '1.3rem';
+        ck.textContent = '\u2713';
+        pd.appendChild(ck);
+        pd.appendChild(document.createTextNode(' Raw P-R table complete'));
+        pd.appendChild(document.createElement('br'));
+        pd.appendChild(document.createTextNode('Next: interpolate from bottom to top'));
+        resultBox.appendChild(pd);
+    } else if (step.type === 'result') {
+        var rb = document.createElement('div');
+        rb.className = 'result-box';
+        rb.textContent = 'AP = ' + step.ap.toFixed(3);
+        resultBox.appendChild(rb);
+    }
+
+    // Controls
+    document.getElementById('prevBtn').disabled = idx <= 0;
+    document.getElementById('nextBtn').disabled = idx >= steps.length - 1;
+    document.getElementById('stepCounter').textContent = 'Step ' + (idx + 1) + ' / ' + steps.length;
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function goToStep(i) {
+    if (i < 0 || i >= steps.length) return;
+    currentStep = i;
+    renderStep(i);
+}
+
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1); }
+
+// ============================================================
+//  PRESETS & AUTOPLAY
+// ============================================================
+var currentPresetName = 'ws2425';
+
+function getCurrentPreset() {
+    return PRESETS[currentPresetName];
+}
+
+function loadPreset(name) {
+    currentPresetName = name;
+    var p = PRESETS[name];
+    steps = generateSteps(p);
+    currentStep = 0;
+    stopAutoplay();
+    document.getElementById('autoplayCheck').checked = false;
+    document.querySelectorAll('.preset-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.preset === name);
+    });
+    renderStep(0);
+}
+
+function startAutoplay() {
+    var ms = parseInt(document.getElementById('speedRange').value);
+    autoplayTimer = setInterval(function() {
+        if (currentStep >= steps.length - 1) {
+            stopAutoplay();
+            document.getElementById('autoplayCheck').checked = false;
+            return;
+        }
+        nextStep();
+    }, ms);
+}
+
+function stopAutoplay() {
+    if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+}
+
+// ============================================================
+//  EVENTS
+// ============================================================
+document.getElementById('nextBtn').addEventListener('click', nextStep);
+document.getElementById('prevBtn').addEventListener('click', prevStep);
+
+document.querySelectorAll('.preset-btn').forEach(function(b) {
+    b.addEventListener('click', function() { loadPreset(b.dataset.preset); });
+});
+
+document.getElementById('autoplayCheck').addEventListener('change', function(e) {
+    if (e.target.checked) startAutoplay(); else stopAutoplay();
+});
+
+document.getElementById('speedRange').addEventListener('input', function(e) {
+    document.getElementById('speedLabel').textContent = (e.target.value / 1000).toFixed(1) + 's';
+    if (autoplayTimer) { stopAutoplay(); startAutoplay(); }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+loadPreset('ws2425');
+</script>
+</body>
+</html>
