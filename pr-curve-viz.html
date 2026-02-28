@@ -365,23 +365,11 @@ function generateSteps(preset) {
             interpFilledRows.push(interpVals[fi]); // null for unfilled
         }
 
-        // Build interpolated points for plotting (deduplicated by recall)
+        // Build interpolated points for plotting (one per filled row)
         var interpPoints = [];
-        var seenR = {};
         for (var pi = 0; pi < rows.length; pi++) {
             if (interpVals[pi] !== null) {
-                var rKey = rows[pi].rk.toFixed(4);
-                if (!seenR[rKey]) {
-                    seenR[rKey] = true;
-                    // At this recall, take the max P_interp among all filled rows
-                    var maxP2 = 0;
-                    for (var pj = 0; pj < rows.length; pj++) {
-                        if (interpVals[pj] !== null && rows[pj].rk.toFixed(4) === rKey) {
-                            maxP2 = Math.max(maxP2, interpVals[pj].val);
-                        }
-                    }
-                    interpPoints.push({ r: rows[pi].rk, p: maxP2 });
-                }
+                interpPoints.push({ r: rows[pi].rk, p: interpVals[pi].val });
             }
         }
 
@@ -568,23 +556,23 @@ function renderGraph(step) {
         }
     }
 
-    // Interpolated curve (green staircase)
+    // Interpolated curve (green)
     var interpPts = step.interpPoints || [];
     if (interpPts.length > 0) {
-        // Draw as staircase: at each point, horizontal line to next recall, then vertical drop
-        var stairD = 'M ' + toX(interpPts[0].r) + ' ' + toY(interpPts[0].p);
-        for (var si = 1; si < interpPts.length; si++) {
-            // Horizontal to new recall at current precision
-            stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si - 1].p);
-            // Vertical to new precision
-            stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si].p);
+        // Only draw the staircase line at the result step
+        if (step.phase === 'result') {
+            var stairD = 'M ' + toX(interpPts[0].r) + ' ' + toY(interpPts[0].p);
+            for (var si = 1; si < interpPts.length; si++) {
+                stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si - 1].p);
+                stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si].p);
+            }
+            svg.appendChild(svgEl('path', {
+                d: stairD, fill: 'none', stroke: '#059669',
+                'stroke-width': 2.5
+            }));
         }
-        svg.appendChild(svgEl('path', {
-            d: stairD, fill: 'none', stroke: '#059669',
-            'stroke-width': 2.5
-        }));
 
-        // Points
+        // Points — during Phase 2 these appear one by one; at result they sit on the staircase
         for (var sj = 0; sj < interpPts.length; sj++) {
             svg.appendChild(svgEl('circle', {
                 cx: toX(interpPts[sj].r), cy: toY(interpPts[sj].p),
