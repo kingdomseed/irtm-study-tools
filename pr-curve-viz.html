@@ -521,10 +521,39 @@ function renderGraph(step) {
     yLabel.textContent = 'Precision';
     svg.appendChild(yLabel);
 
+    // Compute interpolated curve points from complete recall-level groups.
+    // A recall level is "complete" when ALL rows at that recall have P_interp filled.
+    // The curve point uses the max P_interp among all rows at that recall.
+    var curvePoints = [];
+    if (step.interpRows) {
+        var recallGroups = {};
+        var recallOrder = [];
+        for (var ri2 = 0; ri2 < step.rows.length; ri2++) {
+            var rKey = step.rows[ri2].rk.toFixed(4);
+            if (!recallGroups[rKey]) {
+                recallGroups[rKey] = { recall: step.rows[ri2].rk, indices: [] };
+                recallOrder.push(rKey);
+            }
+            recallGroups[rKey].indices.push(ri2);
+        }
+        for (var ci = 0; ci < recallOrder.length; ci++) {
+            var grp = recallGroups[recallOrder[ci]];
+            var allDone = true;
+            var bestP = 0;
+            for (var gi = 0; gi < grp.indices.length; gi++) {
+                var gIdx = grp.indices[gi];
+                if (step.interpRows[gIdx] === null) { allDone = false; break; }
+                bestP = Math.max(bestP, step.interpRows[gIdx].val);
+            }
+            if (allDone) curvePoints.push({ r: grp.recall, p: bestP });
+        }
+        curvePoints.sort(function(a, b) { return a.r - b.r; });
+    }
+    var showInterp = curvePoints.length > 0;
+
     // Raw curve (blue)
     var rawPts = step.rawPoints || [];
     if (rawPts.length > 0) {
-        var showInterp = step.interpPoints && step.interpPoints.length > 0;
         var rawDash = showInterp ? '4,3' : 'none';
         var rawOpacity = showInterp ? '0.5' : '1';
 
@@ -556,38 +585,33 @@ function renderGraph(step) {
         }
     }
 
-    // Interpolated curve (green)
-    var interpPts = step.interpPoints || [];
-    if (interpPts.length > 0) {
-        // Only draw the staircase line at the result step
-        if (step.phase === 'result') {
-            var stairD = 'M ' + toX(interpPts[0].r) + ' ' + toY(interpPts[0].p);
-            for (var si = 1; si < interpPts.length; si++) {
-                stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si - 1].p);
-                stairD += ' L ' + toX(interpPts[si].r) + ' ' + toY(interpPts[si].p);
-            }
-            svg.appendChild(svgEl('path', {
-                d: stairD, fill: 'none', stroke: '#059669',
-                'stroke-width': 2.5
-            }));
+    // Interpolated curve (green staircase) — built from complete recall-level groups
+    if (curvePoints.length > 0) {
+        var stairD = 'M ' + toX(curvePoints[0].r) + ' ' + toY(curvePoints[0].p);
+        for (var si = 1; si < curvePoints.length; si++) {
+            stairD += ' L ' + toX(curvePoints[si].r) + ' ' + toY(curvePoints[si - 1].p);
+            stairD += ' L ' + toX(curvePoints[si].r) + ' ' + toY(curvePoints[si].p);
         }
+        svg.appendChild(svgEl('path', {
+            d: stairD, fill: 'none', stroke: '#059669',
+            'stroke-width': 2.5
+        }));
 
-        // Points — during Phase 2 these appear one by one; at result they sit on the staircase
-        for (var sj = 0; sj < interpPts.length; sj++) {
+        for (var sj = 0; sj < curvePoints.length; sj++) {
             svg.appendChild(svgEl('circle', {
-                cx: toX(interpPts[sj].r), cy: toY(interpPts[sj].p),
+                cx: toX(curvePoints[sj].r), cy: toY(curvePoints[sj].p),
                 r: 5, fill: '#059669', stroke: 'white', 'stroke-width': 1.5
             }));
         }
     }
 
-    // Highlight current interp row's source cell
+    // During Phase 2, highlight the current row's position on the graph
     if (step.phase === 'interp' && step.currentRow != null) {
-        var row = step.rows[step.currentRow];
-        var interpData = step.interpRows[step.currentRow];
-        if (interpData) {
+        var curRow = step.rows[step.currentRow];
+        var curInterp = step.interpRows[step.currentRow];
+        if (curInterp) {
             svg.appendChild(svgEl('circle', {
-                cx: toX(row.rk), cy: toY(interpData.val),
+                cx: toX(curRow.rk), cy: toY(curInterp.val),
                 r: 7, fill: 'none', stroke: '#f59e0b', 'stroke-width': 2.5
             }));
         }
