@@ -348,6 +348,14 @@ function generateSteps(preset) {
         interpVals.push(null);
     }
 
+    // Pre-compute recall groups (which rows share each recall value)
+    var recallGroupMap = {};
+    for (var rg = 0; rg < rows.length; rg++) {
+        var rgKey = rows[rg].rk.toFixed(4);
+        if (!recallGroupMap[rgKey]) recallGroupMap[rgKey] = [];
+        recallGroupMap[rgKey].push(rg);
+    }
+
     var carry = 0;
     var interpFilledRows = [];
 
@@ -385,16 +393,45 @@ function generateSteps(preset) {
             }
         }
 
+        // Build the rule note — explain recall-level grouping when applicable
+        var rule2;
+        if (j === rows.length - 1) {
+            rule2 = 'Bottom row always keeps its own P@k';
+        } else if (useCarry) {
+            rule2 = 'A higher precision exists below \u2014 this recall level inherits it';
+        } else {
+            rule2 = 'Own precision is already the max from here down';
+        }
+
+        // Check if this row shares its recall with other rows
+        var myGroup = recallGroupMap[row.rk.toFixed(4)];
+        if (myGroup.length > 1) {
+            var allFilled = true;
+            for (var mg = 0; mg < myGroup.length; mg++) {
+                if (interpVals[myGroup[mg]] === null) { allFilled = false; break; }
+            }
+            if (allFilled) {
+                // This row completed the group — find max
+                var groupMax = 0;
+                for (var gm = 0; gm < myGroup.length; gm++) {
+                    groupMax = Math.max(groupMax, interpVals[myGroup[gm]].val);
+                }
+                rule2 += '. All ' + myGroup.length + ' ranks at R=' + row.rk.toFixed(1) + ' processed \u2014 curve takes highest P_interp = ' + groupMax.toFixed(3);
+            } else {
+                var remaining = 0;
+                for (var rm = 0; rm < myGroup.length; rm++) {
+                    if (interpVals[myGroup[rm]] === null) remaining++;
+                }
+                rule2 = myGroup.length + ' ranks share R=' + row.rk.toFixed(1) + ' \u2014 curve only gets one point here (the highest). ' + remaining + ' rank' + (remaining > 1 ? 's' : '') + ' still pending.';
+            }
+        }
+
         S.push({
             phase: 'interp', type: 'interp-row',
             rows: rows.slice(), rawPoints: rawPoints.slice(),
             currentRow: j,
             desc: desc2,
-            rule: j === rows.length - 1
-                ? 'Bottom row always keeps its own P@k'
-                : useCarry
-                    ? 'A higher precision exists below \u2014 this recall level inherits it'
-                    : 'Own precision is already the max from here down',
+            rule: rule2,
             interpRows: interpFilledRows.slice(),
             interpPoints: interpPoints.slice()
         });
