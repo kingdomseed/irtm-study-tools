@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Naive Bayes Training — IRTM Study Tools</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --border: #d1d5db;
+            --green: #16a34a;
+            --orange: #ea580c;
+            --pink: #ec4899;
+            --zero-bg: #fef3c7;
+            --highlight: #dbeafe;
+            --class1: #2563eb;
+            --class2: #9333ea;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg); color: var(--text);
+            line-height: 1.6; font-size: 16px;
+        }
+        .back-link {
+            position: fixed; top: 0.75rem; left: 1rem; z-index: 100;
+            font-size: 0.8rem; color: #6b7280; text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .back-link:hover { color: var(--accent); }
+
+        .container { max-width: 1060px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        header { text-align: center; margin-bottom: 1.5rem; }
+        header h1 { font-size: 1.8rem; margin-bottom: 0.15rem; }
+        header .subtitle {
+            color: #6b7280; font-size: 0.95rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .presets {
+            display: flex; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.45rem 1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; transition: all 0.2s;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .preset-btn:hover { border-color: var(--accent); }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .phase-indicator {
+            display: flex; gap: 0.4rem; justify-content: center;
+            margin-bottom: 1.25rem; flex-wrap: wrap;
+        }
+        .phase-chip {
+            padding: 0.25rem 0.7rem; border-radius: 12px;
+            font-size: 0.72rem; border: 1px solid var(--border);
+            background: white; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .phase-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .phase-chip.done { background: #d1fae5; color: var(--green); border-color: #86efac; }
+
+        .main-area {
+            display: grid; grid-template-columns: 1fr 280px;
+            gap: 1.25rem; margin-bottom: 1.25rem;
+        }
+
+        .left-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.25rem;
+        }
+
+        .training-data { margin-bottom: 1rem; }
+        .training-data h3 { font-size: 0.85rem; margin-bottom: 0.5rem; color: #374151; }
+        .class-group { margin-bottom: 0.6rem; }
+        .class-label {
+            font-size: 0.78rem; font-weight: bold; margin-bottom: 0.2rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .class-label.c1 { color: var(--class1); }
+        .class-label.c2 { color: var(--class2); }
+        .doc-chip {
+            display: inline-block; padding: 0.2rem 0.55rem;
+            background: #f3f4f6; border: 1px solid #e5e7eb;
+            border-radius: 4px; font-size: 0.75rem; margin: 0.1rem 0.15rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .doc-chip.highlight-doc { background: var(--highlight); border-color: var(--accent); }
+
+        .vocab-bar {
+            margin-bottom: 1rem; padding: 0.6rem 0.8rem;
+            background: #f9fafb; border: 1px solid #e5e7eb;
+            border-radius: 6px; min-height: 2.2rem;
+        }
+        .vocab-bar-label {
+            font-size: 0.72rem; color: #6b7280; margin-bottom: 0.25rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .vocab-term {
+            display: inline-block; padding: 0.15rem 0.45rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 4px; font-size: 0.75rem; margin: 0.1rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .vocab-term.new-term { background: #dbeafe; border-color: var(--accent); font-weight: bold; }
+
+        .param-table-wrap { overflow-x: auto; margin-bottom: 1rem; }
+        .param-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .param-table th, .param-table td {
+            border: 1px solid #e5e7eb; padding: 0.4rem 0.6rem; text-align: center;
+        }
+        .param-table th {
+            background: #f3f4f6; font-size: 0.75rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .param-table th.c1-header { color: var(--class1); }
+        .param-table th.c2-header { color: var(--class2); }
+        .param-table td.term-cell { text-align: left; font-weight: 600; font-family: 'SF Mono', 'Fira Code', monospace; }
+        .param-table td.highlight-cell { background: var(--highlight); }
+        .param-table td.zero-count { background: var(--zero-bg); }
+        .param-table td.filled { font-weight: 600; }
+        .param-table td.total-row { background: #f9fafb; font-weight: 600; }
+
+        .priors-row {
+            display: flex; gap: 1rem; margin-bottom: 1rem; justify-content: center;
+        }
+        .prior-box {
+            padding: 0.5rem 1rem; border: 1px solid #e5e7eb;
+            border-radius: 6px; text-align: center; font-size: 0.82rem;
+            background: white; min-width: 130px;
+        }
+        .prior-box.highlight-prior { background: var(--highlight); border-color: var(--accent); }
+        .prior-box .prior-label {
+            font-size: 0.7rem; color: #6b7280; margin-bottom: 0.15rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .prior-box .prior-value { font-weight: bold; font-size: 1rem; }
+
+        .step-desc { font-size: 0.88rem; color: #374151; margin-bottom: 0.5rem; min-height: 1.5em; }
+        .rule-note {
+            font-size: 0.78rem; color: #6b7280; font-style: italic; min-height: 1.2em;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .result-box {
+            margin-top: 0.75rem; padding: 0.8rem;
+            background: #f0fdf4; border: 1px solid #86efac;
+            border-radius: 6px; display: none;
+        }
+        .result-box h4 { font-size: 0.82rem; color: var(--green); margin-bottom: 0.3rem; }
+        .result-box p { font-size: 0.8rem; }
+
+        .right-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1rem;
+        }
+        .right-panel h3 {
+            font-size: 0.82rem; color: #374151; margin-bottom: 0.6rem;
+            padding-bottom: 0.4rem; border-bottom: 1px solid #e5e7eb;
+        }
+        .computation-detail {
+            font-size: 0.8rem; line-height: 1.7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 1.25rem; padding: 0.8rem 1rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 0.6rem;
+        }
+        .controls button {
+            padding: 0.55rem 1.1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; transition: all 0.2s;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .controls button:hover:not(:disabled) {
+            background: var(--accent); color: white; border-color: var(--accent);
+        }
+        .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .step-counter {
+            font-size: 0.85rem; color: #6b7280; min-width: 120px; text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.75rem; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.4rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .autoplay-row input[type="range"] { width: 90px; }
+        .kbd-hint {
+            text-align: center; font-size: 0.72rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .kbd-hint kbd {
+            padding: 0.1rem 0.35rem; border: 1px solid #d1d5db;
+            border-radius: 3px; background: white; font-size: 0.7rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-area { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">&larr; All Tools</a>
+
+    <div class="container">
+        <header>
+            <h1>Naive Bayes Training</h1>
+            <p class="subtitle">Step through parameter estimation with add-one smoothing</p>
+        </header>
+
+        <div class="presets">
+            <button class="preset-btn active" data-preset="german">WS21/22 — German / French</button>
+            <button class="preset-btn" data-preset="china">Textbook — China / not China</button>
+        </div>
+
+        <div class="phase-indicator" id="phaseIndicator">
+            <span class="phase-chip" data-phase="vocab">1. Vocabulary</span>
+            <span class="phase-chip" data-phase="priors">2. Priors</span>
+            <span class="phase-chip" data-phase="counts">3. Token Counts</span>
+            <span class="phase-chip" data-phase="smooth">4. Smoothing</span>
+            <span class="phase-chip" data-phase="classify">5. Classify</span>
+        </div>
+
+        <div class="main-area">
+            <div class="left-panel">
+                <div class="training-data" id="trainingData"></div>
+                <div class="vocab-bar" id="vocabBar" style="display:none;">
+                    <div class="vocab-bar-label">Vocabulary V (B = <span id="vocabCount">0</span>)</div>
+                    <div id="vocabTerms"></div>
+                </div>
+                <div class="priors-row" id="priorsRow" style="display:none;"></div>
+                <div class="param-table-wrap" id="tableWrap" style="display:none;">
+                    <table class="param-table" id="paramTable"></table>
+                </div>
+                <div class="step-desc" id="stepDesc"></div>
+                <div class="rule-note" id="ruleNote"></div>
+                <div class="result-box" id="resultBox">
+                    <h4>Classification Result</h4>
+                    <p id="resultText"></p>
+                </div>
+            </div>
+            <div class="right-panel">
+                <h3 id="rightTitle">Current Step</h3>
+                <div class="computation-detail" id="computeDetail"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>&larr; Back</button>
+            <span class="step-counter" id="stepCounter">Ready</span>
+            <button id="nextBtn">Next Step &rarr;</button>
+        </div>
+        <div class="autoplay-row">
+            <label><input type="checkbox" id="autoplayCheck"> Auto-play</label>
+            <input type="range" id="speedRange" min="400" max="3000" value="1200" step="100">
+            <span id="speedLabel">1.2s</span>
+        </div>
+        <div class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>Space</kbd> to navigate</div>
+    </div>
+
+    <script>
+    // NOTE: All dynamic content is built from hardcoded preset data defined
+    // in this file. No user-supplied input is rendered, so DOM construction
+    // via string concatenation is safe from XSS in this context.
+
+    /* ─── Preset Data ─────────────────────── */
+    var PRESETS = {
+        german: {
+            classes: ['German', 'French'],
+            docs: {
+                'German': ['Sausage Cheese', 'Sausage Wine'],
+                'French': ['Cheese Baguette', 'Wine', 'Wine Wine']
+            },
+            testDoc: 'Sausage Cheese Wine'
+        },
+        china: {
+            classes: ['China', 'not China'],
+            docs: {
+                'China': ['Chinese Beijing Chinese', 'Chinese Chinese Shanghai', 'Chinese Macao'],
+                'not China': ['Tokyo Japan Chinese']
+            },
+            testDoc: 'Chinese Chinese Chinese Tokyo Japan'
+        }
+    };
+
+    var steps = [];
+    var currentStep = -1;
+    var currentPreset = 'german';
+    var autoplayTimer = null;
+
+    /* ─── Utility: escape text for safe display ── */
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    /* ─── Step Generation ─────────────────── */
+    function generateSteps(presetKey) {
+        var P = PRESETS[presetKey];
+        var classes = P.classes;
+        var docs = P.docs;
+        var testDoc = P.testDoc;
+        var allSteps = [];
+
+        // Gather all docs
+        var allDocs = [];
+        var totalDocs = 0;
+        for (var ci = 0; ci < classes.length; ci++) {
+            var cDocs = docs[classes[ci]];
+            for (var di = 0; di < cDocs.length; di++) {
+                allDocs.push({ cls: classes[ci], text: cDocs[di] });
+                totalDocs++;
+            }
+        }
+
+        // Build vocabulary in document order
+        var vocabOrdered = [];
+        var vocabSet = {};
+        for (var i = 0; i < allDocs.length; i++) {
+            var words = allDocs[i].text.split(' ');
+            for (var w = 0; w < words.length; w++) {
+                if (!vocabSet[words[w]]) {
+                    vocabSet[words[w]] = true;
+                    vocabOrdered.push(words[w]);
+                }
+            }
+        }
+        var B = vocabOrdered.length;
+
+        // Token counts per class
+        var tokenCounts = {};
+        var classTotals = {};
+        for (var ci = 0; ci < classes.length; ci++) {
+            var c = classes[ci];
+            tokenCounts[c] = {};
+            classTotals[c] = 0;
+            for (var vi = 0; vi < vocabOrdered.length; vi++) {
+                tokenCounts[c][vocabOrdered[vi]] = 0;
+            }
+            var cDocs2 = docs[c];
+            for (var di = 0; di < cDocs2.length; di++) {
+                var words2 = cDocs2[di].split(' ');
+                for (var w2 = 0; w2 < words2.length; w2++) {
+                    tokenCounts[c][words2[w2]]++;
+                    classTotals[c]++;
+                }
+            }
+        }
+
+        // Smoothed conditionals
+        var conditionals = {};
+        for (var ci = 0; ci < classes.length; ci++) {
+            var c = classes[ci];
+            conditionals[c] = {};
+            var denom = classTotals[c] + B;
+            for (var vi = 0; vi < vocabOrdered.length; vi++) {
+                var t = vocabOrdered[vi];
+                conditionals[c][t] = (tokenCounts[c][t] + 1) / denom;
+            }
+        }
+
+        // Helper to build detail HTML from structured parts
+        function makeDetail(parts) {
+            var html = '';
+            for (var pi = 0; pi < parts.length; pi++) {
+                var p = parts[pi];
+                if (p.type === 'formula') {
+                    html += '<div style="font-family:Georgia,serif;font-style:italic;padding:0.5rem;background:#f9fafb;border-radius:4px;margin:0.4rem 0;text-align:center;font-size:0.85rem;">' + esc(p.text) + '</div>';
+                } else if (p.type === 'line') {
+                    html += '<div style="margin:0.3rem 0;padding:0.25rem 0.4rem;border-left:2px solid ' + (p.active ? 'var(--accent)' : 'var(--border)') + ';' + (p.active ? 'background:#eff6ff;' : '') + '"><span style="color:#6b7280;font-size:0.72rem;">' + esc(p.label) + '</span> <span style="font-weight:600;">' + esc(p.value) + '</span></div>';
+                } else if (p.type === 'note') {
+                    html += '<p style="margin-top:0.4rem;color:' + (p.color || '#6b7280') + ';font-size:0.75rem;' + (p.bold ? 'font-weight:600;' : '') + '">' + esc(p.text) + '</p>';
+                } else if (p.type === 'text') {
+                    html += '<p style="margin:0.3rem 0;">' + esc(p.text) + '</p>';
+                } else if (p.type === 'score') {
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.5rem;margin:0.25rem 0;border-radius:4px;font-size:0.8rem;' + (p.winner ? 'background:#d1fae5;font-weight:bold;' : '') + '"><span style="font-weight:600;">' + esc(p.label) + '</span> <span style="font-family:monospace;font-size:0.75rem;">' + esc(p.value) + '</span></div>';
+                }
+            }
+            return html;
+        }
+
+        // ──── Phase 0: Initial ────
+        allSteps.push({
+            phase: 'init',
+            desc: 'Training data: ' + totalDocs + ' documents across ' + classes.length + ' classes.',
+            rule: 'Goal: estimate all parameters of the Naive Bayes model with add-one smoothing.',
+            detailParts: [
+                { type: 'text', text: 'We need to compute:' },
+                { type: 'line', label: '1.', value: 'Vocabulary V and its size B', active: false },
+                { type: 'line', label: '2.', value: 'Prior P\u0302(c) for each class', active: false },
+                { type: 'line', label: '3.', value: 'Token counts per term per class', active: false },
+                { type: 'line', label: '4.', value: 'Smoothed conditionals P\u0302(t|c)', active: false },
+                { type: 'line', label: '5.', value: 'Classify a test document', active: false }
+            ],
+            rightTitle: 'Training Pipeline',
+            vocab: [],
+            priorsData: null,
+            tableData: null,
+            highlightDoc: null
+        });
+
+        // ──── Phase 1: Extract Vocabulary ────
+        var runningVocab = [];
+        for (var vi = 0; vi < vocabOrdered.length; vi++) {
+            runningVocab = runningVocab.concat([vocabOrdered[vi]]);
+            var srcDoc = null;
+            var srcClass = null;
+            for (var di = 0; di < allDocs.length; di++) {
+                if (allDocs[di].text.split(' ').indexOf(vocabOrdered[vi]) >= 0) {
+                    srcDoc = allDocs[di].text;
+                    srcClass = allDocs[di].cls;
+                    break;
+                }
+            }
+            allSteps.push({
+                phase: 'vocab',
+                desc: 'Found "' + vocabOrdered[vi] + '" in ' + srcClass + ' doc "' + srcDoc + '"',
+                rule: 'Scan all documents left to right. Each new unique term joins V.',
+                detailParts: [
+                    { type: 'formula', text: 'V = {' + runningVocab.join(', ') + '}' },
+                    { type: 'line', label: 'New term:', value: vocabOrdered[vi], active: true },
+                    { type: 'line', label: 'B = |V| =', value: '' + runningVocab.length, active: true }
+                ],
+                rightTitle: 'Vocabulary Extraction',
+                vocab: runningVocab.slice(),
+                newTerm: vocabOrdered[vi],
+                priorsData: null,
+                tableData: null,
+                highlightDoc: srcDoc
+            });
+        }
+
+        // Vocab complete
+        allSteps.push({
+            phase: 'vocab',
+            desc: 'Vocabulary complete: B = |V| = ' + B,
+            rule: B + ' unique terms across all training documents.',
+            detailParts: [
+                { type: 'formula', text: 'V = {' + vocabOrdered.join(', ') + '}' },
+                { type: 'line', label: 'B = |V| =', value: '' + B, active: true },
+                { type: 'note', text: 'B is used as the smoothing denominator addition.' }
+            ],
+            rightTitle: 'Vocabulary Complete',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: null,
+            tableData: null,
+            highlightDoc: null
+        });
+
+        // ──── Phase 2: Compute Priors ────
+        var priorsData = {};
+        for (var ci = 0; ci < classes.length; ci++) {
+            var c = classes[ci];
+            var nc = docs[c].length;
+            priorsData[c] = nc / totalDocs;
+            var priorsSnapshot = {};
+            for (var k in priorsData) priorsSnapshot[k] = priorsData[k];
+
+            allSteps.push({
+                phase: 'priors',
+                desc: 'P\u0302(' + c + ') = ' + nc + '/' + totalDocs + ' = ' + (nc / totalDocs).toFixed(4),
+                rule: 'Prior = docs in class / total docs. No smoothing on priors.',
+                detailParts: [
+                    { type: 'formula', text: 'P\u0302(c) = N_c / N' },
+                    { type: 'line', label: 'N(' + c + ') =', value: nc + ' docs', active: true },
+                    { type: 'line', label: 'N =', value: totalDocs + ' docs', active: true },
+                    { type: 'line', label: 'P\u0302(' + c + ') =', value: nc + '/' + totalDocs + ' = ' + (nc/totalDocs).toFixed(4), active: true }
+                ],
+                rightTitle: 'Prior: ' + c,
+                vocab: vocabOrdered.slice(),
+                newTerm: null,
+                priorsData: JSON.parse(JSON.stringify(priorsSnapshot)),
+                highlightPrior: c,
+                tableData: null,
+                highlightDoc: null
+            });
+        }
+
+        // ──── Phase 3: Count Tokens ────
+        var tableData = { terms: vocabOrdered, classes: classes, counts: {}, totals: {}, smoothed: {} };
+        for (var ci = 0; ci < classes.length; ci++) {
+            tableData.counts[classes[ci]] = {};
+            tableData.totals[classes[ci]] = null;
+            tableData.smoothed[classes[ci]] = {};
+        }
+
+        for (var ci = 0; ci < classes.length; ci++) {
+            var c = classes[ci];
+            var cDocs3 = docs[c];
+            var concatTokens = [];
+            for (var di = 0; di < cDocs3.length; di++) {
+                concatTokens = concatTokens.concat(cDocs3[di].split(' '));
+            }
+            var concatStr = concatTokens.join(' ');
+
+            // Concatenation step
+            var concatParts = [{ type: 'line', label: 'Docs:', value: '', active: true }];
+            for (var di2 = 0; di2 < cDocs3.length; di2++) {
+                concatParts.push({ type: 'line', label: '', value: '"' + cDocs3[di2] + '"', active: false });
+            }
+            concatParts.push({ type: 'line', label: 'Concatenated:', value: '"' + concatStr + '"', active: true });
+            concatParts.push({ type: 'line', label: 'Total tokens:', value: '' + concatTokens.length, active: true });
+
+            allSteps.push({
+                phase: 'counts',
+                desc: 'Concatenate all ' + c + ' docs: "' + concatStr + '"',
+                rule: 'Merge all documents in the class into one text, then count term occurrences.',
+                detailParts: concatParts,
+                rightTitle: 'Concatenation: ' + c,
+                vocab: vocabOrdered.slice(),
+                newTerm: null,
+                priorsData: JSON.parse(JSON.stringify(priorsData)),
+                tableData: JSON.parse(JSON.stringify(tableData)),
+                highlightDoc: null,
+                highlightClass: c
+            });
+
+            // Count each term
+            for (var vi2 = 0; vi2 < vocabOrdered.length; vi2++) {
+                var t = vocabOrdered[vi2];
+                var cnt = tokenCounts[c][t];
+                tableData.counts[c][t] = cnt;
+
+                allSteps.push({
+                    phase: 'counts',
+                    desc: 'count(' + t + ', ' + c + ') = ' + cnt,
+                    rule: cnt === 0 ? 'Zero count \u2014 "' + t + '" never appears in ' + c + ' documents.' : 'Count occurrences of "' + t + '" in concatenated ' + c + ' text.',
+                    detailParts: [
+                        { type: 'formula', text: 'T_ct = count of "' + t + '" in ' + c },
+                        { type: 'line', label: 'Text:', value: '"' + concatStr + '"', active: true },
+                        { type: 'line', label: 'Occurrences of "' + t + '":', value: '' + cnt, active: true }
+                    ],
+                    rightTitle: 'Count: ' + t + ' | ' + c,
+                    vocab: vocabOrdered.slice(),
+                    newTerm: null,
+                    priorsData: JSON.parse(JSON.stringify(priorsData)),
+                    tableData: JSON.parse(JSON.stringify(tableData)),
+                    highlightCell: { term: t, cls: c, col: 'count' },
+                    highlightDoc: null
+                });
+            }
+
+            tableData.totals[c] = classTotals[c];
+
+            // Total step
+            var totalParts = [{ type: 'line', label: '\u03A3 T(' + c + ',t\u2032) =', value: '' + classTotals[c], active: true }];
+            for (var vi3 = 0; vi3 < vocabOrdered.length; vi3++) {
+                totalParts.push({ type: 'line', label: vocabOrdered[vi3] + ':', value: '' + tokenCounts[c][vocabOrdered[vi3]], active: false });
+            }
+            allSteps.push({
+                phase: 'counts',
+                desc: 'Total tokens in ' + c + ': ' + classTotals[c],
+                rule: 'Sum of all term counts for this class.',
+                detailParts: totalParts,
+                rightTitle: 'Total: ' + c,
+                vocab: vocabOrdered.slice(),
+                newTerm: null,
+                priorsData: JSON.parse(JSON.stringify(priorsData)),
+                tableData: JSON.parse(JSON.stringify(tableData)),
+                highlightDoc: null
+            });
+        }
+
+        // ──── Phase 4: Smoothed Conditionals ────
+        var denomParts = [{ type: 'formula', text: 'P\u0302(t|c) = (T_ct + 1) / (\u03A3T_ct\u2032 + B)' }];
+        for (var ci = 0; ci < classes.length; ci++) {
+            var c = classes[ci];
+            var denom = classTotals[c] + B;
+            denomParts.push({ type: 'line', label: 'denom(' + c + '):', value: classTotals[c] + ' + ' + B + ' = ' + denom, active: true });
+        }
+        allSteps.push({
+            phase: 'smooth',
+            desc: 'Compute denominators: total tokens + B per class.',
+            rule: 'Add B (vocabulary size) to each class total. This accounts for the +1 added to every term.',
+            detailParts: denomParts,
+            rightTitle: 'Smoothing Setup',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: JSON.parse(JSON.stringify(priorsData)),
+            tableData: JSON.parse(JSON.stringify(tableData)),
+            highlightDoc: null
+        });
+
+        // Each conditional
+        for (var vi4 = 0; vi4 < vocabOrdered.length; vi4++) {
+            var t2 = vocabOrdered[vi4];
+            for (var ci2 = 0; ci2 < classes.length; ci2++) {
+                var c2 = classes[ci2];
+                var cnt2 = tokenCounts[c2][t2];
+                var denom2 = classTotals[c2] + B;
+                var prob = (cnt2 + 1) / denom2;
+                tableData.smoothed[c2][t2] = prob;
+
+                var fracStr = (cnt2 + 1) + '/' + denom2;
+                var isZero = cnt2 === 0;
+
+                var smoothParts = [
+                    { type: 'formula', text: 'P\u0302(t|c) = (T_ct + 1) / (\u03A3T_ct\u2032 + B)' },
+                    { type: 'line', label: 'T(' + t2 + ',' + c2 + ') =', value: '' + cnt2, active: true },
+                    { type: 'line', label: 'Numerator:', value: cnt2 + ' + 1 = ' + (cnt2 + 1), active: true },
+                    { type: 'line', label: 'Denominator:', value: classTotals[c2] + ' + ' + B + ' = ' + denom2, active: true },
+                    { type: 'line', label: 'P\u0302(' + t2 + '|' + c2 + ') =', value: fracStr + ' \u2248 ' + prob.toFixed(4), active: true }
+                ];
+                if (isZero) {
+                    smoothParts.push({ type: 'note', text: '\u26A0 Count was 0 \u2014 without smoothing, this would zero out the entire ' + c2 + ' score!', color: 'var(--orange)', bold: true });
+                }
+
+                allSteps.push({
+                    phase: 'smooth',
+                    desc: 'P\u0302(' + t2 + '|' + c2 + ') = ' + fracStr + (isZero ? '  \u2190 smoothing saves this zero!' : ''),
+                    rule: isZero ? 'Without smoothing this would be 0, killing the entire class probability.' : 'Add 1 to count, add B to denominator.',
+                    detailParts: smoothParts,
+                    rightTitle: 'P\u0302(' + t2 + '|' + c2 + ')',
+                    vocab: vocabOrdered.slice(),
+                    newTerm: null,
+                    priorsData: JSON.parse(JSON.stringify(priorsData)),
+                    tableData: JSON.parse(JSON.stringify(tableData)),
+                    highlightCell: { term: t2, cls: c2, col: 'smooth' },
+                    highlightDoc: null
+                });
+            }
+        }
+
+        // Parameters complete
+        var paramCount = classes.length * (vocabOrdered.length + 1);
+        allSteps.push({
+            phase: 'smooth',
+            desc: 'All parameters computed! Total: C(M+1) = ' + classes.length + '\u00D7(' + vocabOrdered.length + '+1) = ' + paramCount,
+            rule: classes.length + ' priors + ' + (classes.length * vocabOrdered.length) + ' conditionals = ' + paramCount + ' parameters stored.',
+            detailParts: [
+                { type: 'line', label: 'C =', value: classes.length + ' classes', active: true },
+                { type: 'line', label: 'M =', value: vocabOrdered.length + ' terms', active: true },
+                { type: 'line', label: 'Parameters:', value: 'C(M+1) = ' + paramCount, active: true },
+                { type: 'note', text: 'This is the complete trained model. Ready to classify.' }
+            ],
+            rightTitle: 'Training Complete',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: JSON.parse(JSON.stringify(priorsData)),
+            tableData: JSON.parse(JSON.stringify(tableData)),
+            highlightDoc: null
+        });
+
+        // ──── Phase 5: Classify Test Doc ────
+        var testTokens = testDoc.split(' ');
+
+        allSteps.push({
+            phase: 'classify',
+            desc: 'Test document: "' + testDoc + '"',
+            rule: 'For each class: score = P(c) \u00D7 \u220F P(t|c) for all terms in the test doc.',
+            detailParts: [
+                { type: 'formula', text: 'c_MAP = arg max P\u0302(c) \u220F P\u0302(t_k|c)' },
+                { type: 'text', text: 'Test tokens: ' + testTokens.map(function(t){ return '"' + t + '"'; }).join(', ') }
+            ],
+            rightTitle: 'Classification',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: JSON.parse(JSON.stringify(priorsData)),
+            tableData: JSON.parse(JSON.stringify(tableData)),
+            highlightDoc: null,
+            classifyPhase: 'intro',
+            testDoc: testDoc
+        });
+
+        // Start with priors
+        var products = {};
+        for (var ci3 = 0; ci3 < classes.length; ci3++) {
+            products[classes[ci3]] = priorsData[classes[ci3]];
+        }
+
+        var priorParts = [{ type: 'text', text: 'Start with priors:' }];
+        for (var ci4 = 0; ci4 < classes.length; ci4++) {
+            priorParts.push({ type: 'line', label: 'score(' + classes[ci4] + ') =', value: 'P\u0302(' + classes[ci4] + ') = ' + priorsData[classes[ci4]].toFixed(4), active: true });
+        }
+        allSteps.push({
+            phase: 'classify',
+            desc: 'Initialize scores with priors',
+            rule: 'Start each class score with its prior probability.',
+            detailParts: priorParts,
+            rightTitle: 'Priors',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: JSON.parse(JSON.stringify(priorsData)),
+            tableData: JSON.parse(JSON.stringify(tableData)),
+            highlightDoc: null,
+            classifyPhase: 'token',
+            testDoc: testDoc,
+            scores: JSON.parse(JSON.stringify(products))
+        });
+
+        // Step per token
+        for (var ti = 0; ti < testTokens.length; ti++) {
+            var tTok = testTokens[ti];
+            var tokenParts = [{ type: 'line', label: 'Current token:', value: '"' + tTok + '"', active: true }];
+            for (var ci5 = 0; ci5 < classes.length; ci5++) {
+                var cCls = classes[ci5];
+                var tProb = conditionals[cCls][tTok];
+                products[cCls] *= tProb;
+                var fNum = tokenCounts[cCls][tTok] + 1;
+                var fDen = classTotals[cCls] + B;
+                tokenParts.push({ type: 'line', label: cCls + ':', value: '... \u00D7 ' + fNum + '/' + fDen + ' = ' + products[cCls].toFixed(6), active: true });
+            }
+
+            allSteps.push({
+                phase: 'classify',
+                desc: 'Multiply by P\u0302(' + tTok + '|c) for each class',
+                rule: 'Token ' + (ti + 1) + '/' + testTokens.length + ': "' + tTok + '"',
+                detailParts: tokenParts,
+                rightTitle: 'Token: "' + tTok + '"',
+                vocab: vocabOrdered.slice(),
+                newTerm: null,
+                priorsData: JSON.parse(JSON.stringify(priorsData)),
+                tableData: JSON.parse(JSON.stringify(tableData)),
+                highlightDoc: null,
+                classifyPhase: 'token',
+                testDoc: testDoc,
+                currentToken: tTok,
+                tokenIndex: ti,
+                scores: JSON.parse(JSON.stringify(products))
+            });
+        }
+
+        // Final classification result
+        var winner = classes[0];
+        for (var ci6 = 1; ci6 < classes.length; ci6++) {
+            if (products[classes[ci6]] > products[winner]) winner = classes[ci6];
+        }
+
+        var resultParts = [{ type: 'text', text: 'Final Scores:' }];
+        for (var ci7 = 0; ci7 < classes.length; ci7++) {
+            var cFin = classes[ci7];
+            resultParts.push({ type: 'score', label: cFin + ':', value: products[cFin].toFixed(6) + (cFin === winner ? ' \u2190 WINNER' : ''), winner: cFin === winner });
+        }
+        resultParts.push({ type: 'note', text: 'The prior and term conditionals combine to give each class a score. Highest wins.' });
+
+        allSteps.push({
+            phase: 'classify',
+            desc: 'Result: classify as "' + winner + '"',
+            rule: winner + ' has the highest score.',
+            detailParts: resultParts,
+            rightTitle: 'Classification Result',
+            vocab: vocabOrdered.slice(),
+            newTerm: null,
+            priorsData: JSON.parse(JSON.stringify(priorsData)),
+            tableData: JSON.parse(JSON.stringify(tableData)),
+            highlightDoc: null,
+            classifyPhase: 'result',
+            testDoc: testDoc,
+            scores: JSON.parse(JSON.stringify(products)),
+            winner: winner
+        });
+
+        return allSteps;
+    }
+
+    /* ─── Detail Renderer ─────────────────── */
+    function renderDetail(parts) {
+        if (!parts) return '';
+        var html = '';
+        for (var i = 0; i < parts.length; i++) {
+            var p = parts[i];
+            if (p.type === 'formula') {
+                html += '<div style="font-family:Georgia,serif;font-style:italic;padding:0.5rem;background:#f9fafb;border-radius:4px;margin:0.4rem 0;text-align:center;font-size:0.85rem;">' + esc(p.text) + '</div>';
+            } else if (p.type === 'line') {
+                html += '<div style="margin:0.3rem 0;padding:0.25rem 0.4rem;border-left:2px solid ' + (p.active ? 'var(--accent)' : 'var(--border)') + ';' + (p.active ? 'background:#eff6ff;' : '') + '"><span style="color:#6b7280;font-size:0.72rem;">' + esc(p.label) + '</span> <span style="font-weight:600;">' + esc(p.value) + '</span></div>';
+            } else if (p.type === 'note') {
+                html += '<p style="margin-top:0.4rem;color:' + (p.color || '#6b7280') + ';font-size:0.75rem;' + (p.bold ? 'font-weight:600;' : '') + '">' + esc(p.text) + '</p>';
+            } else if (p.type === 'text') {
+                html += '<p style="margin:0.3rem 0;">' + esc(p.text) + '</p>';
+            } else if (p.type === 'score') {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.5rem;margin:0.25rem 0;border-radius:4px;font-size:0.8rem;' + (p.winner ? 'background:#d1fae5;font-weight:bold;' : '') + '"><span style="font-weight:600;">' + esc(p.label) + '</span> <span style="font-family:monospace;font-size:0.75rem;">' + esc(p.value) + '</span></div>';
+            }
+        }
+        return html;
+    }
+
+    /* ─── Rendering ───────────────────────── */
+    function renderStep(idx) {
+        if (idx < 0 || idx >= steps.length) return;
+        currentStep = idx;
+        var step = steps[idx];
+        var P = PRESETS[currentPreset];
+
+        // Phase indicator
+        var phases = ['init', 'vocab', 'priors', 'counts', 'smooth', 'classify'];
+        var chips = document.querySelectorAll('.phase-chip');
+        var currentPhaseIdx = phases.indexOf(step.phase);
+        chips.forEach(function(chip, i) {
+            chip.className = 'phase-chip';
+            var chipPhaseIdx = i + 1;
+            if (chipPhaseIdx < currentPhaseIdx) chip.classList.add('done');
+            else if (chipPhaseIdx === currentPhaseIdx) chip.classList.add('active');
+        });
+
+        // Training data display
+        renderTrainingData(P, step);
+
+        // Vocab bar
+        var vocabBar = document.getElementById('vocabBar');
+        if (step.vocab && step.vocab.length > 0) {
+            vocabBar.style.display = '';
+            document.getElementById('vocabCount').textContent = step.vocab.length;
+            var termsContainer = document.getElementById('vocabTerms');
+            termsContainer.textContent = '';
+            for (var i = 0; i < step.vocab.length; i++) {
+                var span = document.createElement('span');
+                span.className = 'vocab-term' + (step.newTerm === step.vocab[i] ? ' new-term' : '');
+                span.textContent = step.vocab[i];
+                termsContainer.appendChild(span);
+            }
+        } else {
+            vocabBar.style.display = 'none';
+        }
+
+        // Priors
+        var priorsRow = document.getElementById('priorsRow');
+        if (step.priorsData) {
+            priorsRow.style.display = '';
+            priorsRow.textContent = '';
+            for (var c in step.priorsData) {
+                var box = document.createElement('div');
+                box.className = 'prior-box' + (step.highlightPrior === c ? ' highlight-prior' : '');
+                var lbl = document.createElement('div');
+                lbl.className = 'prior-label';
+                lbl.textContent = 'P\u0302(' + c + ')';
+                var val = document.createElement('div');
+                val.className = 'prior-value';
+                val.textContent = step.priorsData[c].toFixed(4);
+                box.appendChild(lbl);
+                box.appendChild(val);
+                priorsRow.appendChild(box);
+            }
+        } else {
+            priorsRow.style.display = 'none';
+        }
+
+        // Parameter table
+        var tableWrap = document.getElementById('tableWrap');
+        if (step.tableData) {
+            tableWrap.style.display = '';
+            renderTable(step);
+        } else {
+            tableWrap.style.display = 'none';
+        }
+
+        // Step description
+        document.getElementById('stepDesc').textContent = step.desc;
+        document.getElementById('ruleNote').textContent = step.rule;
+
+        // Right panel — use renderDetail for safe rendering
+        document.getElementById('rightTitle').textContent = step.rightTitle || 'Current Step';
+        var detailEl = document.getElementById('computeDetail');
+        detailEl.innerHTML = renderDetail(step.detailParts);
+
+        // Result box
+        var resultBox = document.getElementById('resultBox');
+        if (step.classifyPhase === 'result') {
+            resultBox.style.display = '';
+            var resultText = document.getElementById('resultText');
+            resultText.textContent = '';
+            resultText.appendChild(document.createTextNode('Test doc "' + step.testDoc + '" \u2192 '));
+            var strong = document.createElement('strong');
+            strong.textContent = step.winner;
+            resultText.appendChild(strong);
+        } else {
+            resultBox.style.display = 'none';
+        }
+
+        // Controls
+        document.getElementById('prevBtn').disabled = idx <= 0;
+        document.getElementById('nextBtn').disabled = idx >= steps.length - 1;
+        document.getElementById('stepCounter').textContent = 'Step ' + (idx + 1) + ' / ' + steps.length;
+    }
+
+    function renderTrainingData(P, step) {
+        var container = document.getElementById('trainingData');
+        container.textContent = '';
+
+        var h3 = document.createElement('h3');
+        h3.textContent = 'Training Documents';
+        container.appendChild(h3);
+
+        for (var ci = 0; ci < P.classes.length; ci++) {
+            var c = P.classes[ci];
+            var group = document.createElement('div');
+            group.className = 'class-group';
+            var label = document.createElement('div');
+            label.className = 'class-label ' + (ci === 0 ? 'c1' : 'c2');
+            label.textContent = c;
+            group.appendChild(label);
+
+            var cDocs = P.docs[c];
+            for (var di = 0; di < cDocs.length; di++) {
+                var chip = document.createElement('span');
+                chip.className = 'doc-chip' + (step.highlightDoc === cDocs[di] ? ' highlight-doc' : '');
+                chip.textContent = cDocs[di];
+                group.appendChild(chip);
+            }
+            container.appendChild(group);
+        }
+
+        // Test doc during classify phase
+        if (step.classifyPhase) {
+            var testGroup = document.createElement('div');
+            testGroup.className = 'class-group';
+            testGroup.style.cssText = 'margin-top:0.6rem;padding-top:0.5rem;border-top:1px dashed #d1d5db;';
+            var testLabel = document.createElement('div');
+            testLabel.className = 'class-label';
+            testLabel.style.color = 'var(--orange)';
+            testLabel.textContent = 'Test Document';
+            testGroup.appendChild(testLabel);
+
+            if (step.currentToken !== undefined && step.currentToken !== null) {
+                var tokens = step.testDoc.split(' ');
+                for (var ti = 0; ti < tokens.length; ti++) {
+                    var tChip = document.createElement('span');
+                    tChip.className = 'doc-chip' + (ti === step.tokenIndex ? ' highlight-doc' : '');
+                    tChip.textContent = tokens[ti];
+                    testGroup.appendChild(tChip);
+                }
+            } else {
+                var dChip = document.createElement('span');
+                dChip.className = 'doc-chip';
+                dChip.textContent = step.testDoc;
+                testGroup.appendChild(dChip);
+            }
+            container.appendChild(testGroup);
+        }
+    }
+
+    function renderTable(step) {
+        var td = step.tableData;
+        var table = document.getElementById('paramTable');
+        table.textContent = '';
+
+        var showSmoothed = false;
+        for (var ci = 0; ci < td.classes.length; ci++) {
+            if (Object.keys(td.smoothed[td.classes[ci]]).length > 0) { showSmoothed = true; break; }
+        }
+
+        // Header
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        var th0 = document.createElement('th');
+        th0.textContent = 'Term';
+        hrow.appendChild(th0);
+
+        for (var ci = 0; ci < td.classes.length; ci++) {
+            var thCount = document.createElement('th');
+            thCount.className = ci === 0 ? 'c1-header' : 'c2-header';
+            thCount.textContent = 'count(' + td.classes[ci] + ')';
+            hrow.appendChild(thCount);
+            if (showSmoothed) {
+                var thProb = document.createElement('th');
+                thProb.className = ci === 0 ? 'c1-header' : 'c2-header';
+                thProb.textContent = 'P\u0302(t|' + td.classes[ci] + ')';
+                hrow.appendChild(thProb);
+            }
+        }
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        // Body
+        var tbody = document.createElement('tbody');
+        for (var vi = 0; vi < td.terms.length; vi++) {
+            var t = td.terms[vi];
+            var row = document.createElement('tr');
+            var tdTerm = document.createElement('td');
+            tdTerm.className = 'term-cell';
+            tdTerm.textContent = t;
+            row.appendChild(tdTerm);
+
+            for (var ci2 = 0; ci2 < td.classes.length; ci2++) {
+                var c = td.classes[ci2];
+                var cnt = td.counts[c][t];
+                var hasCount = cnt !== undefined;
+                var isCountHL = step.highlightCell && step.highlightCell.term === t && step.highlightCell.cls === c && step.highlightCell.col === 'count';
+                var isZero = hasCount && cnt === 0;
+
+                var tdCount = document.createElement('td');
+                if (hasCount) {
+                    var cls = '';
+                    if (isCountHL) cls += 'highlight-cell ';
+                    if (isZero) cls += 'zero-count ';
+                    cls += 'filled';
+                    tdCount.className = cls;
+                    tdCount.textContent = cnt;
+                } else {
+                    tdCount.textContent = '\u2014';
+                }
+                row.appendChild(tdCount);
+
+                if (showSmoothed) {
+                    var prob = td.smoothed[c][t];
+                    var hasProb = prob !== undefined;
+                    var isSmoothHL = step.highlightCell && step.highlightCell.term === t && step.highlightCell.cls === c && step.highlightCell.col === 'smooth';
+
+                    var tdProb = document.createElement('td');
+                    if (hasProb) {
+                        var cnt3 = td.counts[c][t];
+                        var B2 = td.terms.length;
+                        var denom = td.totals[c] + B2;
+                        var fracStr = (cnt3 + 1) + '/' + denom;
+                        var cls2 = '';
+                        if (isSmoothHL) cls2 += 'highlight-cell ';
+                        if (cnt3 === 0) cls2 += 'zero-count ';
+                        cls2 += 'filled';
+                        tdProb.className = cls2;
+                        tdProb.textContent = fracStr;
+                    } else {
+                        tdProb.textContent = '\u2014';
+                    }
+                    row.appendChild(tdProb);
+                }
+            }
+            tbody.appendChild(row);
+        }
+
+        // Totals row
+        var hasTotals = false;
+        for (var ci3 = 0; ci3 < td.classes.length; ci3++) {
+            if (td.totals[td.classes[ci3]] !== null) { hasTotals = true; break; }
+        }
+        if (hasTotals) {
+            var trow = document.createElement('tr');
+            var tdLabel = document.createElement('td');
+            tdLabel.className = 'term-cell total-row';
+            var em = document.createElement('em');
+            em.textContent = 'Total';
+            tdLabel.appendChild(em);
+            trow.appendChild(tdLabel);
+
+            for (var ci4 = 0; ci4 < td.classes.length; ci4++) {
+                var tot = td.totals[td.classes[ci4]];
+                var tdTot = document.createElement('td');
+                tdTot.className = 'total-row';
+                tdTot.textContent = tot !== null ? tot : '\u2014';
+                trow.appendChild(tdTot);
+                if (showSmoothed) {
+                    var tdEmpty = document.createElement('td');
+                    tdEmpty.className = 'total-row';
+                    trow.appendChild(tdEmpty);
+                }
+            }
+            tbody.appendChild(trow);
+        }
+
+        table.appendChild(tbody);
+    }
+
+    /* ─── Navigation ──────────────────────── */
+    function nextStep() {
+        if (currentStep < steps.length - 1) renderStep(currentStep + 1);
+    }
+    function prevStep() {
+        if (currentStep > 0) renderStep(currentStep - 1);
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', prevStep);
+    document.getElementById('nextBtn').addEventListener('click', nextStep);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+    });
+
+    /* ─── Autoplay ────────────────────────── */
+    function startAutoplay() {
+        var ms = parseInt(document.getElementById('speedRange').value);
+        autoplayTimer = setInterval(function() {
+            if (currentStep >= steps.length - 1) {
+                stopAutoplay();
+                document.getElementById('autoplayCheck').checked = false;
+                return;
+            }
+            nextStep();
+        }, ms);
+    }
+    function stopAutoplay() {
+        if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+    }
+    document.getElementById('autoplayCheck').addEventListener('change', function(e) {
+        if (e.target.checked) startAutoplay(); else stopAutoplay();
+    });
+    document.getElementById('speedRange').addEventListener('input', function(e) {
+        document.getElementById('speedLabel').textContent = (e.target.value / 1000).toFixed(1) + 's';
+        if (autoplayTimer) { stopAutoplay(); startAutoplay(); }
+    });
+
+    /* ─── Presets ──────────────────────────── */
+    function loadPreset(key) {
+        stopAutoplay();
+        document.getElementById('autoplayCheck').checked = false;
+        currentPreset = key;
+        steps = generateSteps(key);
+        currentStep = -1;
+
+        document.querySelectorAll('.preset-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.preset === key);
+        });
+
+        renderStep(0);
+    }
+
+    document.querySelectorAll('.preset-btn').forEach(function(b) {
+        b.addEventListener('click', function() { loadPreset(b.dataset.preset); });
+    });
+
+    /* ─── Init ────────────────────────────── */
+    loadPreset('german');
+    </script>
+</body>
+</html>
