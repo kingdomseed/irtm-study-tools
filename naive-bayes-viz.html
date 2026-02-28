@@ -126,6 +126,15 @@
         .param-table td.zero-count { background: var(--zero-bg); }
         .param-table td.filled { font-weight: 600; }
         .param-table td.total-row { background: #f9fafb; font-weight: 600; }
+        .smooth-breakdown {
+            font-size: 0.68rem; color: #6b7280; font-weight: normal;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .smooth-breakdown .plus-one { color: var(--accent); font-weight: 700; }
+        .smooth-breakdown .plus-b { color: var(--accent); font-weight: 700; }
+        .smooth-result {
+            font-weight: 700; font-size: 0.85rem; margin-top: 0.1rem;
+        }
 
         .priors-row {
             display: flex; gap: 1rem; margin-bottom: 1rem; justify-content: center;
@@ -965,7 +974,7 @@
             if (showSmoothed) {
                 var thProb = document.createElement('th');
                 thProb.className = ci === 0 ? 'c1-header' : 'c2-header';
-                thProb.textContent = 'P\u0302(t|' + td.classes[ci] + ')';
+                thProb.textContent = 'P\u0302(t|' + td.classes[ci] + ') +1';
                 hrow.appendChild(thProb);
             }
         }
@@ -1018,7 +1027,29 @@
                         if (cnt3 === 0) cls2 += 'zero-count ';
                         cls2 += 'filled';
                         tdProb.className = cls2;
-                        tdProb.textContent = fracStr;
+
+                        // Breakdown line: (count+1) / (total+B)
+                        var breakdown = document.createElement('div');
+                        breakdown.className = 'smooth-breakdown';
+                        var cntSpan = document.createTextNode('(' + cnt3);
+                        breakdown.appendChild(cntSpan);
+                        var plusOne = document.createElement('span');
+                        plusOne.className = 'plus-one';
+                        plusOne.textContent = '+1';
+                        breakdown.appendChild(plusOne);
+                        breakdown.appendChild(document.createTextNode(') / (' + td.totals[c]));
+                        var plusB = document.createElement('span');
+                        plusB.className = 'plus-b';
+                        plusB.textContent = '+' + B2;
+                        breakdown.appendChild(plusB);
+                        breakdown.appendChild(document.createTextNode(')'));
+                        tdProb.appendChild(breakdown);
+
+                        // Result line: final fraction
+                        var result = document.createElement('div');
+                        result.className = 'smooth-result';
+                        result.textContent = fracStr;
+                        tdProb.appendChild(result);
                     } else {
                         tdProb.textContent = '\u2014';
                     }
