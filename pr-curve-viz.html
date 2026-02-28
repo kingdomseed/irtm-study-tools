@@ -365,11 +365,23 @@ function generateSteps(preset) {
             interpFilledRows.push(interpVals[fi]); // null for unfilled
         }
 
-        // Build interpolated points for plotting (only filled ones)
+        // Build interpolated points for plotting (deduplicated by recall)
         var interpPoints = [];
+        var seenR = {};
         for (var pi = 0; pi < rows.length; pi++) {
             if (interpVals[pi] !== null) {
-                interpPoints.push({ r: rows[pi].rk, p: interpVals[pi].val });
+                var rKey = rows[pi].rk.toFixed(4);
+                if (!seenR[rKey]) {
+                    seenR[rKey] = true;
+                    // At this recall, take the max P_interp among all filled rows
+                    var maxP2 = 0;
+                    for (var pj = 0; pj < rows.length; pj++) {
+                        if (interpVals[pj] !== null && rows[pj].rk.toFixed(4) === rKey) {
+                            maxP2 = Math.max(maxP2, interpVals[pj].val);
+                        }
+                    }
+                    interpPoints.push({ r: rows[pi].rk, p: maxP2 });
+                }
             }
         }
 
