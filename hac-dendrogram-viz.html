@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAC Dendrogram — Step-Through Visualizer</title>
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --accent2: #059669;
+            --border: #d1d5db;
+            --highlight: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: var(--bg); color: var(--text);
+            line-height: 1.7; font-size: 18px;
+        }
+        .container { max-width: 1060px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+        .back-link {
+            position: fixed; top: 0.75rem; left: 1rem; z-index: 100;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.8rem;
+            background: white; border: 1px solid var(--border);
+            border-radius: 6px; text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.8rem; color: var(--accent);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s;
+        }
+        .back-link:hover { background: #eff6ff; border-color: var(--accent); }
+
+        header { text-align: center; margin-bottom: 1.5rem; }
+        header h1 { font-size: 1.8rem; margin-bottom: 0.15rem; }
+        header .subtitle { color: #6b7280; font-size: 0.95rem; }
+
+        .presets {
+            display: flex; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.45rem 1rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.85rem; transition: all 0.2s;
+        }
+        .preset-btn:hover { border-color: var(--accent); }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 0.6rem;
+            margin-bottom: 0.75rem; justify-content: center;
+        }
+        .legend-item {
+            font-family: -apple-system, sans-serif;
+            font-size: 0.7rem; display: flex; align-items: center; gap: 0.25rem;
+        }
+        .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+        .legend-dot.lg-single { background: #dbeafe; border: 1px solid var(--accent); }
+        .legend-dot.lg-complete { background: #d1fae5; border: 1px solid var(--accent2); }
+        .legend-dot.lg-current { background: #fef3c7; border: 1px solid var(--highlight); }
+
+        .main-area {
+            display: grid; grid-template-columns: 1fr 300px;
+            gap: 1.25rem; margin-bottom: 1.25rem;
+        }
+        .left-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.25rem;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .phase-label {
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+            font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin-bottom: 0.5rem; transition: color 0.3s;
+        }
+        .phase-label.single { color: var(--accent); }
+        .phase-label.complete { color: var(--accent2); }
+        .phase-label.setup { color: #6b7280; }
+        .phase-label.compare { color: #22c55e; }
+
+        .dendro-svg { width: 100%; max-width: 500px; }
+        .dendro-svg text {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .step-desc {
+            font-size: 0.95rem; text-align: center;
+            padding: 0.8rem 1rem; background: #f8f9fa;
+            border-radius: 6px; margin-top: 0.75rem;
+            min-height: 2.8rem; display: flex; align-items: center; justify-content: center;
+            width: 100%;
+        }
+
+        .right-panel {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1rem;
+            overflow-y: auto; max-height: 520px;
+        }
+        .right-panel h3 {
+            font-size: 0.95rem; margin-bottom: 0.6rem;
+            padding-bottom: 0.4rem; border-bottom: 2px solid var(--bg);
+        }
+        .dist-matrix {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.8rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .dist-matrix th, .dist-matrix td {
+            padding: 0.35rem 0.5rem; text-align: center;
+            border: 1px solid var(--border);
+        }
+        .dist-matrix th {
+            background: #f8f9fa; font-weight: 600; font-size: 0.75rem;
+        }
+        .dist-matrix td.highlight-min {
+            background: #fef3c7; border: 2px solid var(--highlight); font-weight: 700;
+        }
+        .dist-matrix td.highlight-updated {
+            color: var(--accent); font-weight: 700;
+        }
+        .dist-matrix td.diagonal { color: #d1d5db; }
+
+        .rule-note {
+            font-size: 0.78rem; color: #6b7280; text-align: center;
+            margin-top: 0.75rem; font-style: italic;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .detail-box {
+            margin-top: 0.75rem; padding: 0.6rem 0.8rem;
+            background: #f8f9fa; border-radius: 6px;
+            font-size: 0.78rem; line-height: 1.6;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .result-box {
+            text-align: center; padding: 1rem;
+            background: #dcfce7; border: 2px solid #22c55e;
+            border-radius: 8px; margin-top: 0.75rem;
+            font-size: 0.88rem;
+        }
+
+        .controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 1rem; margin-bottom: 0.75rem;
+        }
+        .controls button {
+            padding: 0.55rem 1.25rem; border: 1px solid var(--border);
+            background: white; border-radius: 6px; cursor: pointer;
+            font-family: inherit; font-size: 0.95rem; transition: all 0.2s;
+        }
+        .controls button:hover:not(:disabled) {
+            background: var(--accent); color: white; border-color: var(--accent);
+        }
+        .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .step-counter {
+            font-size: 0.85rem; min-width: 120px; text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #6b7280;
+        }
+        .autoplay-row {
+            display: flex; align-items: center; gap: 0.6rem; justify-content: center;
+            margin-bottom: 0.75rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.82rem; color: #6b7280;
+        }
+        .autoplay-row input[type=range] { width: 120px; }
+        .kbd-hint {
+            text-align: center; font-size: 0.72rem; color: #9ca3af;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        kbd {
+            display: inline-block; padding: 0.1rem 0.4rem;
+            background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 3px; font-size: 0.7rem;
+        }
+        @media (max-width: 768px) {
+            .main-area { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">&larr; All Tools</a>
+    <div class="container">
+        <header>
+            <h1>HAC Dendrogram Visualizer</h1>
+            <p class="subtitle">Step through hierarchical agglomerative clustering</p>
+        </header>
+
+        <div class="presets">
+            <button class="preset-btn active" data-preset="ws2425">WS 24/25 (3 pts)</button>
+            <button class="preset-btn" data-preset="ws2122">WS 21/22 (3 pts)</button>
+            <button class="preset-btn" data-preset="ws1920">WS 19/20 (5 pts)</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-dot lg-single"></span> Single-Link</div>
+            <div class="legend-item"><span class="legend-dot lg-complete"></span> Complete-Link</div>
+            <div class="legend-item"><span class="legend-dot lg-current"></span> Current Step</div>
+        </div>
+
+        <div class="main-area">
+            <div class="left-panel">
+                <div class="phase-label setup" id="phaseLabel">SETUP</div>
+                <div id="vizContainer" style="width:100%;display:flex;justify-content:center;"></div>
+                <div class="step-desc" id="stepDesc">Click Next to begin</div>
+            </div>
+            <div class="right-panel">
+                <h3 id="matrixTitle">Distance Matrix</h3>
+                <div id="matrixContainer"></div>
+                <div class="rule-note" id="ruleNote"></div>
+                <div id="detailContainer"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>&larr; Back</button>
+            <span class="step-counter" id="stepCounter">Ready</span>
+            <button id="nextBtn">Next Step &rarr;</button>
+        </div>
+
+        <div class="autoplay-row">
+            <label><input type="checkbox" id="autoplayCheck"> Auto-play</label>
+            <input type="range" id="speedRange" min="400" max="3000" value="1200" step="100">
+            <span id="speedLabel">1.2s</span>
+        </div>
+        <div class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>Space</kbd> to navigate</div>
+    </div>
+
+<script>
+// ============================================================
+//  PRESETS
+// ============================================================
+var PRESETS = {
+    ws2425: {
+        name: 'WS 24/25',
+        points: [
+            { label: 'd\u2081', x: 2, y: 1 },
+            { label: 'd\u2082', x: 4, y: 1 },
+            { label: 'd\u2083', x: 2, y: 5 }
+        ],
+        methods: ['single', 'complete']
+    },
+    ws2122: {
+        name: 'WS 21/22',
+        points: [
+            { label: 'A', x: 1, y: 1 },
+            { label: 'B', x: 1, y: 3 },
+            { label: 'C', x: 5, y: 3 }
+        ],
+        methods: ['single', 'complete']
+    },
+    ws1920: {
+        name: 'WS 19/20',
+        points: [
+            { label: '1', x: 5, y: 1 },
+            { label: '2', x: 5, y: 2 },
+            { label: '3', x: 1, y: 1 },
+            { label: '4', x: 1, y: 3 },
+            { label: '5', x: 1, y: 4 }
+        ],
+        methods: ['single']
+    }
+};
+
+var currentPreset = 'ws2425';
+var steps = [];
+var currentStep = 0;
+
+// ============================================================
+//  MATH
+// ============================================================
+function euclidean(a, b) {
+    return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+}
+
+function fmtDist(d) {
+    if (Math.abs(d - Math.round(d)) < 0.0001) return Math.round(d).toString();
+    return d.toFixed(2);
+}
+
+// ============================================================
+//  HAC ALGORITHM
+// ============================================================
+function runHAC(points, linkage) {
+    var n = points.length;
+
+    // Initial pairwise distances
+    var initialDist = [];
+    for (var i = 0; i < n; i++) {
+        initialDist[i] = [];
+        for (var j = 0; j < n; j++) {
+            if (i === j) initialDist[i][j] = 0;
+            else if (i < j) initialDist[i][j] = euclidean(points[i], points[j]);
+            else initialDist[i][j] = initialDist[j][i];
+        }
+    }
+
+    // Clusters: index 0..n-1 are leaves, n+ are merged
+    var clusters = [];
+    for (var ci = 0; ci < n; ci++) {
+        clusters.push({
+            label: points[ci].label,
+            members: [ci],
+            node: { type: 'leaf', idx: ci, label: points[ci].label }
+        });
+    }
+
+    // Working distance matrix (grows with merges)
+    var dist = [];
+    for (var di = 0; di < n; di++) dist[di] = initialDist[di].slice();
+
+    var active = [];
+    for (var ai = 0; ai < n; ai++) active.push(ai);
+
+    var merges = [];
+
+    while (active.length > 1) {
+        // Find minimum distance
+        var minDist = Infinity, minA = -1, minB = -1;
+        for (var a = 0; a < active.length; a++) {
+            for (var b = a + 1; b < active.length; b++) {
+                var ca = active[a], cb = active[b];
+                var lo = Math.min(ca, cb), hi = Math.max(ca, cb);
+                var d = dist[lo][hi];
+                if (d < minDist || (d === minDist && (ca < minA || (ca === minA && cb < minB)))) {
+                    minDist = d;
+                    minA = ca;
+                    minB = cb;
+                }
+            }
+        }
+
+        // Order left/right so cluster with smaller min-member is on left
+        // This gives the exam-standard leaf ordering (first-merged on left)
+        var minMemA = Math.min.apply(null, clusters[minA].members);
+        var minMemB = Math.min.apply(null, clusters[minB].members);
+        var visL, visR;
+        if (minMemA <= minMemB) { visL = minA; visR = minB; }
+        else { visL = minB; visR = minA; }
+
+        var leftC = clusters[visL], rightC = clusters[visR];
+        var newLabel = '{' + leftC.label + ',' + rightC.label + '}';
+        var newMembers = leftC.members.concat(rightC.members);
+        var newNode = {
+            type: 'internal', label: newLabel,
+            distance: minDist,
+            left: leftC.node, right: rightC.node
+        };
+
+        var newIdx = clusters.length;
+        clusters.push({ label: newLabel, members: newMembers, node: newNode });
+
+        // Extend dist matrix
+        dist[newIdx] = [];
+        for (var x = 0; x <= newIdx; x++) dist[newIdx][x] = 0;
+        for (var y = 0; y < newIdx; y++) {
+            if (!dist[y]) dist[y] = [];
+            dist[y][newIdx] = 0;
+        }
+
+        // Compute new distances
+        var linkageDetails = [];
+        for (var k = 0; k < active.length; k++) {
+            var ck = active[k];
+            if (ck === minA || ck === minB) continue;
+            var dLk = dist[Math.min(visL, ck)][Math.max(visL, ck)];
+            var dRk = dist[Math.min(visR, ck)][Math.max(visR, ck)];
+            var newD = linkage === 'single' ? Math.min(dLk, dRk) : Math.max(dLk, dRk);
+            dist[Math.min(newIdx, ck)][Math.max(newIdx, ck)] = newD;
+            dist[Math.max(newIdx, ck)][Math.min(newIdx, ck)] = newD;
+            linkageDetails.push({
+                otherLabel: clusters[ck].label,
+                otherIdx: ck,
+                dLeft: dLk, dRight: dRk, result: newD
+            });
+        }
+
+        // Update active
+        active = active.filter(function(c) { return c !== minA && c !== minB; });
+        active.push(newIdx);
+
+        merges.push({
+            leftIdx: visL, rightIdx: visR, newIdx: newIdx,
+            distance: minDist,
+            leftLabel: leftC.label, rightLabel: rightC.label,
+            newLabel: newLabel,
+            activeAfter: active.slice(),
+            linkageDetails: linkageDetails
+        });
+    }
+
+    var root = clusters[active[0]].node;
+
+    function getLeafOrder(node) {
+        if (node.type === 'leaf') return [node.idx];
+        return getLeafOrder(node.left).concat(getLeafOrder(node.right));
+    }
+
+    return {
+        initialDist: initialDist,
+        merges: merges,
+        root: root,
+        leafOrder: getLeafOrder(root),
+        clusters: clusters,
+        dist: dist
+    };
+}
+
+// ============================================================
+//  MATRIX STATE HELPER
+// ============================================================
+function getMatrixState(hacResult, afterMerge, points) {
+    var active;
+    if (afterMerge < 0) {
+        active = [];
+        for (var i = 0; i < points.length; i++) active.push(i);
+    } else {
+        active = hacResult.merges[afterMerge].activeAfter;
+    }
+    var labels = active.map(function(ci) { return hacResult.clusters[ci].label; });
+    var matrix = [];
+    for (var r = 0; r < active.length; r++) {
+        matrix[r] = [];
+        for (var c = 0; c < active.length; c++) {
+            if (r === c) { matrix[r][c] = 0; continue; }
+            var lo = Math.min(active[r], active[c]);
+            var hi = Math.max(active[r], active[c]);
+            matrix[r][c] = hacResult.dist[lo][hi];
+        }
+    }
+    return { labels: labels, matrix: matrix, activeIndices: active };
+}
+
+// ============================================================
+//  STEP GENERATION
+// ============================================================
+function generateSteps(presetKey) {
+    var preset = PRESETS[presetKey];
+    var pts = preset.points;
+    var out = [];
+
+    // Run HAC for each method
+    var results = {};
+    var globalMaxDist = 0;
+    for (var m = 0; m < preset.methods.length; m++) {
+        var method = preset.methods[m];
+        results[method] = runHAC(pts, method);
+        var lastD = results[method].merges[results[method].merges.length - 1].distance;
+        if (lastD > globalMaxDist) globalMaxDist = lastD;
+    }
+    var yScale = globalMaxDist * 1.2;
+
+    // --- Phase: Setup ---
+    out.push({
+        phase: 'setup', type: 'intro',
+        leftMode: 'scatter', points: pts,
+        matrix: null, matrixLabels: null,
+        desc: 'Given ' + pts.length + ' points in vector space',
+        rule: null, detailLines: pts.map(function(p) {
+            return p.label + '(' + p.x + ', ' + p.y + ')';
+        })
+    });
+
+    var initResult = results[preset.methods[0]];
+    var initLabels = pts.map(function(p) { return p.label; });
+    out.push({
+        phase: 'setup', type: 'distances',
+        leftMode: 'scatter', points: pts,
+        matrix: initResult.initialDist, matrixLabels: initLabels,
+        matrixHighlight: null, matrixUpdated: null,
+        desc: 'Compute all pairwise Euclidean distances',
+        rule: 'd(p,q) = \u221A(\u03A3(p\u1D62 \u2212 q\u1D62)\u00B2)',
+        detailLines: null
+    });
+
+    // --- Phases: Merging ---
+    for (var mi = 0; mi < preset.methods.length; mi++) {
+        var meth = preset.methods[mi];
+        var hacR = results[meth];
+        var methName = meth === 'single' ? 'Single-Link' : 'Complete-Link';
+        var fn = meth === 'single' ? 'min' : 'max';
+        var formula = 'd(C\u2081\u222AC\u2082, C\u2083) = ' + fn + '(d(C\u2081,C\u2083), d(C\u2082,C\u2083))';
+
+        // Reset step for second method
+        if (mi > 0) {
+            out.push({
+                phase: meth, type: 'reset',
+                leftMode: 'dendrogram',
+                hacResult: hacR, mergesUpTo: 0, highlightMerge: null,
+                leafOrder: hacR.leafOrder, yScale: yScale, linkage: meth,
+                matrix: initResult.initialDist, matrixLabels: initLabels,
+                matrixHighlight: null, matrixUpdated: null,
+                desc: 'Now applying ' + methName + ' clustering',
+                rule: formula, detailLines: null
+            });
+        }
+
+        for (var k = 0; k < hacR.merges.length; k++) {
+            var merge = hacR.merges[k];
+            var matBefore = getMatrixState(hacR, k - 1, pts);
+
+            // Find highlight position in matrix
+            var hlRow = -1, hlCol = -1;
+            for (var hi = 0; hi < matBefore.activeIndices.length; hi++) {
+                if (matBefore.activeIndices[hi] === merge.leftIdx) hlRow = hi;
+                if (matBefore.activeIndices[hi] === merge.rightIdx) hlCol = hi;
+            }
+            if (hlRow > hlCol) { var tmp = hlRow; hlRow = hlCol; hlCol = tmp; }
+
+            // Step: find minimum
+            out.push({
+                phase: meth, type: 'find-min',
+                leftMode: 'dendrogram',
+                hacResult: hacR, mergesUpTo: k, highlightMerge: null,
+                leafOrder: hacR.leafOrder, yScale: yScale, linkage: meth,
+                matrix: matBefore.matrix, matrixLabels: matBefore.labels,
+                matrixHighlight: { row: hlRow, col: hlCol }, matrixUpdated: null,
+                desc: methName + ': minimum distance = ' + fmtDist(merge.distance) + ' between ' + merge.leftLabel + ' and ' + merge.rightLabel,
+                rule: null, detailLines: null
+            });
+
+            // Step: merge
+            out.push({
+                phase: meth, type: 'merge',
+                leftMode: 'dendrogram',
+                hacResult: hacR, mergesUpTo: k + 1, highlightMerge: k,
+                leafOrder: hacR.leafOrder, yScale: yScale, linkage: meth,
+                matrix: matBefore.matrix, matrixLabels: matBefore.labels,
+                matrixHighlight: { row: hlRow, col: hlCol }, matrixUpdated: null,
+                desc: 'Merge ' + merge.leftLabel + ' and ' + merge.rightLabel + ' \u2192 ' + merge.newLabel + ' at d=' + fmtDist(merge.distance),
+                rule: null, detailLines: null
+            });
+
+            // Step: update matrix (skip for last merge)
+            if (k < hacR.merges.length - 1) {
+                var matAfter = getMatrixState(hacR, k, pts);
+                var updIdx = matAfter.activeIndices.indexOf(merge.newIdx);
+
+                var detLines = merge.linkageDetails.map(function(ld) {
+                    return 'd(' + merge.newLabel + ', ' + ld.otherLabel + ') = ' + fn + '(' + fmtDist(ld.dLeft) + ', ' + fmtDist(ld.dRight) + ') = ' + fmtDist(ld.result);
+                });
+
+                out.push({
+                    phase: meth, type: 'update',
+                    leftMode: 'dendrogram',
+                    hacResult: hacR, mergesUpTo: k + 1, highlightMerge: null,
+                    leafOrder: hacR.leafOrder, yScale: yScale, linkage: meth,
+                    matrix: matAfter.matrix, matrixLabels: matAfter.labels,
+                    matrixHighlight: null, matrixUpdated: updIdx,
+                    desc: 'Update distances using ' + fn + '()',
+                    rule: formula, detailLines: detLines
+                });
+            }
+        }
+
+        // Done step
+        out.push({
+            phase: meth, type: 'done',
+            leftMode: 'dendrogram',
+            hacResult: hacR, mergesUpTo: hacR.merges.length, highlightMerge: null,
+            leafOrder: hacR.leafOrder, yScale: yScale, linkage: meth,
+            matrix: null, matrixLabels: null,
+            matrixHighlight: null, matrixUpdated: null,
+            desc: methName + ' dendrogram complete',
+            rule: meth === 'single'
+                ? 'Single-link tends to produce elongated clusters (chaining effect)'
+                : 'Complete-link tends to produce compact, spherical clusters',
+            detailLines: hacR.merges.map(function(mg, i) {
+                return (i + 1) + '. Merge ' + mg.leftLabel + ' + ' + mg.rightLabel + ' at d=' + fmtDist(mg.distance);
+            })
+        });
+    }
+
+    // Comparison step (if two methods)
+    if (preset.methods.length > 1) {
+        var singleR = results.single, completeR = results.complete;
+        var diffMerge = -1;
+        for (var di = 0; di < singleR.merges.length; di++) {
+            if (Math.abs(singleR.merges[di].distance - completeR.merges[di].distance) > 0.001) {
+                diffMerge = di; break;
+            }
+        }
+        var compareLines = [];
+        compareLines.push('Single-Link merges:');
+        singleR.merges.forEach(function(mg, i) {
+            compareLines.push('  ' + (i + 1) + '. ' + mg.leftLabel + ' + ' + mg.rightLabel + ' at d=' + fmtDist(mg.distance));
+        });
+        compareLines.push('');
+        compareLines.push('Complete-Link merges:');
+        completeR.merges.forEach(function(mg, i) {
+            compareLines.push('  ' + (i + 1) + '. ' + mg.leftLabel + ' + ' + mg.rightLabel + ' at d=' + fmtDist(mg.distance));
+        });
+
+        out.push({
+            phase: 'compare', type: 'compare',
+            leftMode: 'compare',
+            singleResult: singleR, completeResult: completeR,
+            yScale: yScale,
+            desc: 'Single-Link vs Complete-Link',
+            rule: 'Single-link uses min() \u2192 chaining; Complete-link uses max() \u2192 compact clusters',
+            detailLines: compareLines,
+            matrix: null, matrixLabels: null,
+            matrixHighlight: null, matrixUpdated: null
+        });
+    }
+
+    return out;
+}
+
+// ============================================================
+//  SVG HELPERS
+// ============================================================
+function svgEl(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+}
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+// ============================================================
+//  SCATTER PLOT
+// ============================================================
+function renderScatter(svg, points) {
+    clearChildren(svg);
+    var W = 500, H = 350;
+    var PAD = { top: 25, right: 30, bottom: 45, left: 55 };
+    var GW = W - PAD.left - PAD.right;
+    var GH = H - PAD.top - PAD.bottom;
+
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < points.length; i++) {
+        if (points[i].x < minX) minX = points[i].x;
+        if (points[i].x > maxX) maxX = points[i].x;
+        if (points[i].y < minY) minY = points[i].y;
+        if (points[i].y > maxY) maxY = points[i].y;
+    }
+    var rX = maxX - minX || 1, rY = maxY - minY || 1;
+    var dMinX = Math.floor(minX - rX * 0.25);
+    var dMaxX = Math.ceil(maxX + rX * 0.25);
+    var dMinY = Math.floor(minY - rY * 0.25);
+    var dMaxY = Math.ceil(maxY + rY * 0.25);
+
+    function toSX(x) { return PAD.left + (x - dMinX) / (dMaxX - dMinX) * GW; }
+    function toSY(y) { return PAD.top + GH - (y - dMinY) / (dMaxY - dMinY) * GH; }
+
+    svg.appendChild(svgEl('rect', { x:0, y:0, width:W, height:H, fill:'white', rx:4 }));
+
+    // Grid
+    for (var gx = Math.ceil(dMinX); gx <= dMaxX; gx++) {
+        svg.appendChild(svgEl('line', { x1:toSX(gx), y1:PAD.top, x2:toSX(gx), y2:H-PAD.bottom, stroke:'#f3f4f6', 'stroke-width':1 }));
+        var xl = svgEl('text', { x:toSX(gx), y:H-PAD.bottom+18, 'text-anchor':'middle', 'font-size':'11', fill:'#6b7280' });
+        xl.textContent = gx;
+        svg.appendChild(xl);
+    }
+    for (var gy = Math.ceil(dMinY); gy <= dMaxY; gy++) {
+        svg.appendChild(svgEl('line', { x1:PAD.left, y1:toSY(gy), x2:W-PAD.right, y2:toSY(gy), stroke:'#f3f4f6', 'stroke-width':1 }));
+        var yl = svgEl('text', { x:PAD.left-8, y:toSY(gy)+4, 'text-anchor':'end', 'font-size':'11', fill:'#6b7280' });
+        yl.textContent = gy;
+        svg.appendChild(yl);
+    }
+
+    // Axes
+    svg.appendChild(svgEl('line', { x1:PAD.left, y1:PAD.top, x2:PAD.left, y2:H-PAD.bottom, stroke:'#374151', 'stroke-width':1.5 }));
+    svg.appendChild(svgEl('line', { x1:PAD.left, y1:H-PAD.bottom, x2:W-PAD.right, y2:H-PAD.bottom, stroke:'#374151', 'stroke-width':1.5 }));
+
+    // Points
+    for (var pi = 0; pi < points.length; pi++) {
+        var p = points[pi];
+        svg.appendChild(svgEl('circle', { cx:toSX(p.x), cy:toSY(p.y), r:6, fill:'#2563eb', stroke:'white', 'stroke-width':2 }));
+        var pLbl = svgEl('text', { x:toSX(p.x)+10, y:toSY(p.y)-8, 'font-size':'12', fill:'#374151', 'font-weight':'600' });
+        pLbl.textContent = p.label + '(' + p.x + ',' + p.y + ')';
+        svg.appendChild(pLbl);
+    }
+}
+
+// ============================================================
+//  DENDROGRAM
+// ============================================================
+function renderDendrogram(svg, step) {
+    clearChildren(svg);
+    var hacR = step.hacResult;
+    var leafOrder = step.leafOrder;
+    var n = leafOrder.length;
+    var maxDist = step.yScale;
+    var mergesUpTo = step.mergesUpTo || 0;
+
+    var W = 500, H = 350;
+    var PAD = { top: 25, right: 30, bottom: 45, left: 55 };
+    var GW = W - PAD.left - PAD.right;
+    var GH = H - PAD.top - PAD.bottom;
+
+    function toX(leafPos) { return PAD.left + GW * (leafPos + 0.5) / n; }
+    function toY(d) { return PAD.top + GH - (d / maxDist * GH); }
+
+    svg.appendChild(svgEl('rect', { x:0, y:0, width:W, height:H, fill:'white', rx:4 }));
+
+    // Y-axis grid
+    var tickStep = maxDist <= 2 ? 0.5 : maxDist <= 6 ? 1 : 2;
+    for (var t = 0; t <= maxDist; t += tickStep) {
+        svg.appendChild(svgEl('line', { x1:PAD.left, y1:toY(t), x2:W-PAD.right, y2:toY(t), stroke:'#f3f4f6', 'stroke-width':1 }));
+        var tl = svgEl('text', { x:PAD.left-8, y:toY(t)+4, 'text-anchor':'end', 'font-size':'11', fill:'#6b7280' });
+        tl.textContent = fmtDist(t);
+        svg.appendChild(tl);
+    }
+
+    // Axes
+    svg.appendChild(svgEl('line', { x1:PAD.left, y1:PAD.top, x2:PAD.left, y2:H-PAD.bottom, stroke:'#374151', 'stroke-width':1.5 }));
+    svg.appendChild(svgEl('line', { x1:PAD.left, y1:H-PAD.bottom, x2:W-PAD.right, y2:H-PAD.bottom, stroke:'#374151', 'stroke-width':1.5 }));
+
+    // Y-axis label
+    var yLbl = svgEl('text', { x:14, y:PAD.top+GH/2, 'text-anchor':'middle', 'font-size':'12', fill:'#374151', 'font-weight':'600', transform:'rotate(-90,14,'+(PAD.top+GH/2)+')' });
+    yLbl.textContent = 'Distance';
+    svg.appendChild(yLbl);
+
+    // Leaf positions
+    var leafX = {};
+    for (var li = 0; li < leafOrder.length; li++) {
+        leafX[leafOrder[li]] = toX(li);
+    }
+
+    // Leaf labels
+    var pts = PRESETS[currentPreset].points;
+    for (var lj = 0; lj < leafOrder.length; lj++) {
+        var pidx = leafOrder[lj];
+        var ll = svgEl('text', { x:leafX[pidx], y:H-PAD.bottom+18, 'text-anchor':'middle', 'font-size':'13', fill:'#374151', 'font-weight':'600' });
+        ll.textContent = pts[pidx].label;
+        svg.appendChild(ll);
+        // Small dot at base
+        svg.appendChild(svgEl('circle', { cx:leafX[pidx], cy:toY(0), r:3, fill:'#374151' }));
+    }
+
+    // Draw branches
+    var nodePos = {};
+    for (var pi2 = 0; pi2 < leafOrder.length; pi2++) {
+        nodePos[leafOrder[pi2]] = { x: leafX[leafOrder[pi2]], y: 0 };
+    }
+
+    var color = step.linkage === 'single' ? '#2563eb' : '#059669';
+
+    for (var mi2 = 0; mi2 < Math.min(mergesUpTo, hacR.merges.length); mi2++) {
+        var mg = hacR.merges[mi2];
+        var lPos = nodePos[mg.leftIdx];
+        var rPos = nodePos[mg.rightIdx];
+        var mergeYpx = toY(mg.distance);
+        var lYpx = toY(lPos.y);
+        var rYpx = toY(rPos.y);
+
+        var isHL = mi2 === step.highlightMerge;
+        var sc = isHL ? '#f59e0b' : color;
+        var sw = isHL ? 3 : 1.8;
+
+        // Left vertical
+        svg.appendChild(svgEl('line', { x1:lPos.x, y1:lYpx, x2:lPos.x, y2:mergeYpx, stroke:sc, 'stroke-width':sw }));
+        // Right vertical
+        svg.appendChild(svgEl('line', { x1:rPos.x, y1:rYpx, x2:rPos.x, y2:mergeYpx, stroke:sc, 'stroke-width':sw }));
+        // Horizontal
+        svg.appendChild(svgEl('line', { x1:lPos.x, y1:mergeYpx, x2:rPos.x, y2:mergeYpx, stroke:sc, 'stroke-width':sw }));
+
+        // Distance label
+        var midX = (lPos.x + rPos.x) / 2;
+        var dl = svgEl('text', { x:midX, y:mergeYpx-6, 'text-anchor':'middle', 'font-size':'11', fill:isHL?'#d97706':'#6b7280', 'font-weight':isHL?'700':'400' });
+        dl.textContent = fmtDist(mg.distance);
+        svg.appendChild(dl);
+
+        nodePos[mg.newIdx] = { x: midX, y: mg.distance };
+    }
+
+    // Method label in top-right
+    var methLabel = step.linkage === 'single' ? 'Single-Link' : 'Complete-Link';
+    var ml = svgEl('text', { x:W-PAD.right, y:18, 'text-anchor':'end', 'font-size':'12', fill:color, 'font-weight':'700' });
+    ml.textContent = methLabel;
+    svg.appendChild(ml);
+}
+
+// ============================================================
+//  COMPARISON (two dendrograms side by side)
+// ============================================================
+function renderComparison(container, step) {
+    clearChildren(container);
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;gap:0.5rem;width:100%;';
+
+    var methods = [
+        { label: 'Single-Link', result: step.singleResult, linkage: 'single', color: '#2563eb' },
+        { label: 'Complete-Link', result: step.completeResult, linkage: 'complete', color: '#059669' }
+    ];
+
+    for (var i = 0; i < methods.length; i++) {
+        var m = methods[i];
+        var div = document.createElement('div');
+        div.style.cssText = 'flex:1;text-align:center;';
+
+        var lbl = document.createElement('div');
+        lbl.style.cssText = 'font-size:0.78rem;font-weight:700;color:' + m.color + ';margin-bottom:0.2rem;font-family:-apple-system,sans-serif;';
+        lbl.textContent = m.label;
+        div.appendChild(lbl);
+
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'dendro-svg');
+        svg.setAttribute('viewBox', '0 0 500 350');
+        div.appendChild(svg);
+
+        renderDendrogram(svg, {
+            hacResult: m.result,
+            mergesUpTo: m.result.merges.length,
+            highlightMerge: null,
+            leafOrder: m.result.leafOrder,
+            yScale: step.yScale,
+            linkage: m.linkage
+        });
+
+        wrapper.appendChild(div);
+    }
+    container.appendChild(wrapper);
+}
+
+// ============================================================
+//  DISTANCE MATRIX TABLE
+// ============================================================
+function renderMatrix(container, labels, matrix, highlight, updatedIdx) {
+    clearChildren(container);
+    if (!labels || labels.length === 0) {
+        var p = document.createElement('p');
+        p.textContent = 'All points merged into one cluster.';
+        p.style.cssText = 'color:#6b7280;font-size:0.85rem;text-align:center;padding:1rem;';
+        container.appendChild(p);
+        return;
+    }
+
+    var table = document.createElement('table');
+    table.className = 'dist-matrix';
+
+    var thead = document.createElement('thead');
+    var hrow = document.createElement('tr');
+    var emptyTh = document.createElement('th');
+    hrow.appendChild(emptyTh);
+    for (var j = 0; j < labels.length; j++) {
+        var th = document.createElement('th');
+        th.textContent = labels[j];
+        if (updatedIdx != null && j === updatedIdx) th.style.color = '#2563eb';
+        hrow.appendChild(th);
+    }
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    for (var r = 0; r < labels.length; r++) {
+        var row = document.createElement('tr');
+        var rth = document.createElement('th');
+        rth.textContent = labels[r];
+        if (updatedIdx != null && r === updatedIdx) rth.style.color = '#2563eb';
+        row.appendChild(rth);
+
+        for (var c = 0; c < labels.length; c++) {
+            var td = document.createElement('td');
+            if (r === c) {
+                td.textContent = '\u2014';
+                td.className = 'diagonal';
+            } else if (c > r) {
+                td.textContent = fmtDist(matrix[r][c]);
+                if (highlight && highlight.row === r && highlight.col === c) {
+                    td.className = 'highlight-min';
+                } else if (updatedIdx != null && (r === updatedIdx || c === updatedIdx)) {
+                    td.className = 'highlight-updated';
+                }
+            } else {
+                td.textContent = '';
+                td.style.borderColor = 'transparent';
+            }
+            row.appendChild(td);
+        }
+        tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+}
+
+// ============================================================
+//  RENDER STEP
+// ============================================================
+function renderStep(idx) {
+    var step = steps[idx];
+
+    // Phase label
+    var pLabel = document.getElementById('phaseLabel');
+    pLabel.className = 'phase-label';
+    if (step.phase === 'setup') { pLabel.textContent = 'SETUP'; pLabel.classList.add('setup'); }
+    else if (step.phase === 'single') { pLabel.textContent = 'SINGLE-LINK'; pLabel.classList.add('single'); }
+    else if (step.phase === 'complete') { pLabel.textContent = 'COMPLETE-LINK'; pLabel.classList.add('complete'); }
+    else if (step.phase === 'compare') { pLabel.textContent = 'COMPARISON'; pLabel.classList.add('compare'); }
+
+    // Left panel
+    var vizC = document.getElementById('vizContainer');
+    if (step.leftMode === 'scatter') {
+        clearChildren(vizC);
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'dendro-svg');
+        svg.setAttribute('viewBox', '0 0 500 350');
+        vizC.appendChild(svg);
+        renderScatter(svg, step.points);
+    } else if (step.leftMode === 'dendrogram') {
+        clearChildren(vizC);
+        var svg2 = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg2.setAttribute('class', 'dendro-svg');
+        svg2.setAttribute('viewBox', '0 0 500 350');
+        vizC.appendChild(svg2);
+        renderDendrogram(svg2, step);
+    } else if (step.leftMode === 'compare') {
+        renderComparison(vizC, step);
+    }
+
+    // Step description
+    document.getElementById('stepDesc').textContent = step.desc;
+
+    // Right panel: matrix
+    var matTitle = document.getElementById('matrixTitle');
+    var matContainer = document.getElementById('matrixContainer');
+    if (step.matrix) {
+        matTitle.textContent = 'Distance Matrix';
+        matTitle.style.display = '';
+        renderMatrix(matContainer, step.matrixLabels, step.matrix, step.matrixHighlight, step.matrixUpdated);
+    } else {
+        matTitle.style.display = 'none';
+        clearChildren(matContainer);
+    }
+
+    // Rule note
+    var ruleEl = document.getElementById('ruleNote');
+    ruleEl.textContent = step.rule || '';
+
+    // Detail
+    var detailC = document.getElementById('detailContainer');
+    clearChildren(detailC);
+    if (step.detailLines && step.detailLines.length > 0) {
+        var box = document.createElement('div');
+        box.className = step.type === 'done' || step.type === 'compare' ? 'result-box' : 'detail-box';
+        for (var di = 0; di < step.detailLines.length; di++) {
+            var line = document.createElement('div');
+            line.textContent = step.detailLines[di];
+            box.appendChild(line);
+        }
+        detailC.appendChild(box);
+    }
+
+    // Controls
+    document.getElementById('prevBtn').disabled = idx <= 0;
+    document.getElementById('nextBtn').disabled = idx >= steps.length - 1;
+    document.getElementById('stepCounter').textContent = 'Step ' + (idx + 1) + ' / ' + steps.length;
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function goToStep(i) {
+    if (i < 0 || i >= steps.length) return;
+    currentStep = i;
+    renderStep(i);
+}
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1); }
+
+// ============================================================
+//  PRESET LOADING
+// ============================================================
+function loadPreset(key) {
+    currentPreset = key;
+    steps = generateSteps(key);
+    currentStep = 0;
+    stopAutoplay();
+    document.getElementById('autoplayCheck').checked = false;
+    renderStep(0);
+
+    document.querySelectorAll('.preset-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-preset') === key);
+    });
+}
+
+// ============================================================
+//  AUTOPLAY
+// ============================================================
+var autoplayTimer = null;
+function startAutoplay() {
+    var ms = parseInt(document.getElementById('speedRange').value);
+    autoplayTimer = setInterval(function() {
+        if (currentStep >= steps.length - 1) {
+            stopAutoplay();
+            document.getElementById('autoplayCheck').checked = false;
+            return;
+        }
+        nextStep();
+    }, ms);
+}
+function stopAutoplay() {
+    if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+}
+
+// ============================================================
+//  EVENT LISTENERS
+// ============================================================
+document.getElementById('prevBtn').addEventListener('click', prevStep);
+document.getElementById('nextBtn').addEventListener('click', nextStep);
+
+document.querySelectorAll('.preset-btn').forEach(function(b) {
+    b.addEventListener('click', function() {
+        loadPreset(b.getAttribute('data-preset'));
+    });
+});
+
+document.getElementById('autoplayCheck').addEventListener('change', function(e) {
+    if (e.target.checked) startAutoplay(); else stopAutoplay();
+});
+
+document.getElementById('speedRange').addEventListener('input', function(e) {
+    document.getElementById('speedLabel').textContent = (e.target.value / 1000).toFixed(1) + 's';
+    if (autoplayTimer) { stopAutoplay(); startAutoplay(); }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+loadPreset('ws2425');
+</script>
+</body>
+</html>
